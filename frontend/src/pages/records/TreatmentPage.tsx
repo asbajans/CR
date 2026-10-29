@@ -26,6 +26,7 @@ export const TreatmentPage: React.FC = () => {
   const [items, setItems] = useState<ItemForm[]>([newItem()]);
   const [discount, setDiscount] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
+  const [serviceCategoryFilter, setServiceCategoryFilter] = useState('');
 
   const canManage = ['ADMIN', 'SALES', 'DENTIST'].includes(user?.role || '');
 
@@ -43,6 +44,8 @@ export const TreatmentPage: React.FC = () => {
     queryKey: ['services'],
     queryFn: async () => (await api.get('/settings/services')).data.data as any[],
   });
+
+  const filteredServices = (services || []).filter((s: any) => !serviceCategoryFilter || s.category === serviceCategoryFilter);
 
   const { data: allUsers = [] } = useQuery({
     queryKey: ['users'],
@@ -227,7 +230,17 @@ export const TreatmentPage: React.FC = () => {
         </div>
 
         <div className="space-y-2">
-          <p className="text-sm font-medium text-slate-700">Tedavi Kalemleri</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-slate-700">Tedavi Kalemleri</p>
+            <Select value={serviceCategoryFilter} onChange={(e) => setServiceCategoryFilter(e.target.value)} className="w-64">
+              <option value="">Tüm Kategoriler</option>
+              {services.map((s: any) => (
+                <option key={s.category} value={s.category}>
+                  {s.category}
+                </option>
+              ))}
+            </Select>
+          </div>
           {items.map((item, index) => (
             <div key={index} className="grid grid-cols-12 gap-2 items-end">
               <div className="col-span-2">
@@ -246,7 +259,7 @@ export const TreatmentPage: React.FC = () => {
                   value={item.serviceId}
                   onChange={(e) => {
                     const next = [...items];
-                    const service = services.find((s: any) => s.id === e.target.value);
+                    const service = filteredServices.find((s: any) => s.id === e.target.value);
                     next[index] = {
                       ...item,
                       serviceId: e.target.value,
@@ -257,7 +270,7 @@ export const TreatmentPage: React.FC = () => {
                   }}
                 >
                   <option value="">Hizmet Seçin</option>
-                  {services.map((s: any) => (
+                  {filteredServices.map((s: any) => (
                     <option key={s.id} value={s.id}>
                       {s.category} - {s.name} ({String(s.price)}₺)
                     </option>

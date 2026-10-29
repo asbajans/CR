@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
-import { Badge, Button, Card, Field, Input, Modal, PageHeader, Select, Table, Textarea } from '../../components/ui';
+import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Select, Table, Textarea } from '../../components/ui';
 import { ROLE_LABEL, dateOnly, dateTime, fromLocalInput, money, toLocalInput } from '../../lib/format';
 
 type Tab = 'expenses' | 'services' | 'commissions';
@@ -347,30 +347,43 @@ const ServicesTab: React.FC = () => {
           <h3 className="font-semibold text-slate-900">Hizmetler ve Ürünler</h3>
           <p className="text-xs text-slate-500 mt-1">Kategori bazlı hizmet ve ürün fiyatları tanımlanır. Tedavi planlarında seçilebilir.</p>
         </div>
-        <div className="overflow-x-auto">
-          <Table head={['Kategori', 'Hizmet / Ürün', 'Açıklama', 'Fiyat', 'Durum', 'İşlemler']}>
-            {services?.map((s: any) => (
-              <tr key={s.id}>
-                <td className="px-4 py-3 font-medium text-slate-900">{s.category}</td>
-                <td className="px-4 py-3 font-medium text-slate-900">{s.name}</td>
-                <td className="px-4 py-3 text-slate-600">{s.description || '-'}</td>
-                <td className="px-4 py-3 font-semibold text-slate-900">{money(s.price)}</td>
-                <td className="px-4 py-3">
-                  <Badge tone={s.isActive ? 'green' : 'slate'}>{s.isActive ? 'Aktif' : 'Pasif'}</Badge>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => setServiceModal({ open: true, id: s.id, category: s.category, name: s.name, description: s.description || '', price: String(s.price), isActive: s.isActive })}>
-                      Düzenle
-                    </Button>
-                    <Button size="sm" variant="danger" onClick={() => deleteService(s.id)}>
-                      Sil
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </Table>
+        <div className="p-6 space-y-6">
+          {(categories || []).map((cat: any) => {
+            const catServices = (services || []).filter((s: any) => s.category === cat);
+            return (
+              <div key={cat}>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold text-slate-800">{cat}</h4>
+                  <span className="text-xs text-slate-500">{catServices.length} hizmet</span>
+                </div>
+                <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                  <Table head={['Hizmet / Ürün', 'Açıklama', 'Fiyat', 'Durum', 'İşlemler']}>
+                    {catServices.map((s: any) => (
+                      <tr key={s.id}>
+                        <td className="px-4 py-3 font-medium text-slate-900">{s.name}</td>
+                        <td className="px-4 py-3 text-slate-600">{s.description || '-'}</td>
+                        <td className="px-4 py-3 font-semibold text-slate-900">{money(s.price)}</td>
+                        <td className="px-4 py-3">
+                          <Badge tone={s.isActive ? 'green' : 'slate'}>{s.isActive ? 'Aktif' : 'Pasif'}</Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="secondary" onClick={() => setServiceModal({ open: true, id: s.id, category: s.category, name: s.name, description: s.description || '', price: String(s.price), isActive: s.isActive })}>
+                              Düzenle
+                            </Button>
+                            <Button size="sm" variant="danger" onClick={() => deleteService(s.id)}>
+                              Sil
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </Table>
+                </div>
+              </div>
+            );
+          })}
+          {(!services || services.length === 0) && <Empty title="Henüz hizmet / ürün tanımlı değil" />}
         </div>
       </Card>
 

@@ -14,7 +14,7 @@ const expenseCategorySchema = z.object({
 const expenseSchema = z.object({
   categoryId: z.string().min(1),
   name: z.string().min(1),
-  amount: z.string(),
+  amount: z.coerce.string().min(1),
   expenseDate: z.string().datetime(),
   description: z.string().optional(),
 });
@@ -128,7 +128,7 @@ router.post('/commission-rates', asyncHandler(async (req: AuthRequest, res: Resp
     role: z.enum(['ADMIN', 'DENTIST', 'CALL_CENTER', 'SALES', 'BANKO']),
     type: z.string(),
     serviceCategory: z.string().optional(),
-    rate: z.string(),
+    rate: z.coerce.string().min(1),
     isActive: z.boolean().optional(),
   }).parse(req.body);
 
@@ -149,7 +149,7 @@ router.patch('/commission-rates/:id', asyncHandler(async (req: Request, res: Res
     role: z.enum(['ADMIN', 'DENTIST', 'CALL_CENTER', 'SALES', 'BANKO']).optional(),
     type: z.string().optional(),
     serviceCategory: z.string().optional(),
-    rate: z.string().optional(),
+    rate: z.coerce.string().optional(),
     isActive: z.boolean().optional(),
   }).parse(req.body);
 
@@ -178,7 +178,7 @@ const serviceSchema = z.object({
   category: z.string().min(1),
   name: z.string().min(1),
   description: z.string().optional(),
-  price: z.string(),
+  price: z.coerce.string().min(1),
   isActive: z.boolean().optional(),
 });
 
