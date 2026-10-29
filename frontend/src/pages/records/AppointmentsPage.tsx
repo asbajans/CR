@@ -324,7 +324,7 @@ export const AppointmentsPage: React.FC = () => {
             {workingHoursData && (
               <div className="mb-3 flex gap-4 text-xs">
                 <span className="text-slate-600">
-                  Çalışma Saatleri: <strong>{workingHoursData.startTime || '09:00'} - {workingHoursData.endTime || '18:00'}</strong>
+                   Çalışma Saatleri: <strong>{workingHoursData.start || '09:00'} - {workingHoursData.end || '18:00'}</strong>
                 </span>
                 {workingHoursData.lunchStart && workingHoursData.lunchEnd && (
                   <span className="text-slate-600">
