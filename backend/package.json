@@ -10,7 +10,9 @@
     "start:prod": "node dist/src/index.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "test": "echo \"No tests specified\" && exit 0",
+    "lint": "echo \"No linting configured\" && exit 0"
   },
   "dependencies": {
     "@prisma/client": "^5.10.0",
