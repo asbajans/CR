@@ -302,12 +302,17 @@ const ServicesTab: React.FC = () => {
     isActive: true,
   });
 
-  const { data: services } = useQuery({
-    queryKey: ['services'],
-    queryFn: async () => (await api.get('/settings/services')).data.data as any[],
-  });
-
-  const saveService = async () => {
+    const { data: services } = useQuery({
+      queryKey: ['services'],
+      queryFn: async () => (await api.get('/settings/services')).data.data as any[],
+    });
+  
+    const { data: serviceCategories } = useQuery({
+      queryKey: ['service-categories'],
+      queryFn: async () => (await api.get('/settings/service-categories')).data.data as string[],
+    });
+  
+    const saveService = async () => {
     if (!serviceModal.category.trim() || !serviceModal.name.trim() || !serviceModal.price) return;
     const payload = {
       category: serviceModal.category.trim(),
@@ -417,7 +422,12 @@ const ServicesTab: React.FC = () => {
       >
         <div className="grid grid-cols-2 gap-4">
           <Field label="Kategori *">
-            <Input value={serviceModal.category} onChange={(e) => setServiceModal({ ...serviceModal, category: e.target.value })} placeholder="Örn: implant, tedavi, cerrahi, ürün" />
+              <Select value={serviceModal.category} onChange={(e) => setServiceModal({ ...serviceModal, category: e.target.value })}>
+                <option value="">— Seçiniz —</option>
+                {(serviceCategories || []).map((c: string) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </Select>
           </Field>
           <Field label="Hizmet / Ürün Adı *">
             <Input value={serviceModal.name} onChange={(e) => setServiceModal({ ...serviceModal, name: e.target.value })} placeholder="Örn: Implant, Ortodonti Tedavisi" />

@@ -189,6 +189,14 @@ router.get('/services', asyncHandler(async (_req: Request, res: Response) => {
   res.json({ success: true, data: services });
 }));
 
+router.get('/service-categories', asyncHandler(async (_req: Request, res: Response) => {
+  const services = await prisma.service.findMany({
+    select: { category: true },
+  });
+  const categories = [...new Set(services.map((s) => s.category).filter(Boolean))].sort();
+  res.json({ success: true, data: categories });
+}));
+
 router.post('/services', asyncHandler(async (req: AuthRequest, res: Response) => {
   const data = serviceSchema.parse(req.body);
   const service = await prisma.service.create({
