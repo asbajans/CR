@@ -1,0 +1,95 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: crdent-db
+    restart: unless-stopped
+    ports:
+      - "4002:5432"
+    environment:
+      POSTGRES_USER: crdent
+      POSTGRES_PASSWORD: crdent_dev_password
+      POSTGRES_DB: crdent
+    volumes:
+      - crdent_db_data:/var/lib/postgresql/data
+    networks:
+      - crdent_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: crdent-redis
+    restart: unless-stopped
+    ports:
+      - "4003:6379"
+    networks:
+      - crdent_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: crdent-backend
+    restart: unless-stopped
+    ports:
+      - "4001:3001"
+    environment:
+      DATABASE_URL: "postgresql://crdent:crdent_dev_password@db:5432/crdent?schema=public"
+      JWT_SECRET: "crdent-dev-secret-change-in-production"
+      JWT_EXPIRE: "7d"
+      NODE_ENV: "production"
+      PORT: "3001"
+      CORS_ORIGIN: "http://localhost:4000"
+      GEMINI_API_KEY: ""
+      META_APP_ID: ""
+      META_APP_SECRET: ""
+      META_VERIFY_TOKEN: "crdent_verify_token"
+      WHATSAPP_PHONE_NUMBER_ID: ""
+      WHATSAPP_WABA_ID: ""
+      WHATSAPP_ACCESS_TOKEN: ""
+      TWILIO_ACCOUNT_SID: ""
+      TWILIO_AUTH_TOKEN: ""
+      TWILIO_PHONE_NUMBER: ""
+      SMTP_HOST: ""
+      SMTP_PORT: "587"
+      SMTP_USER: ""
+      SMTP_PASS: ""
+      SMTP_FROM: ""
+    depends_on:
+      - db
+      - redis
+    networks:
+      - crdent_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: crdent-frontend
+    restart: unless-stopped
+    ports:
+      - "4000:80"
+    environment:
+      VITE_API_BASE_URL: "http://localhost:4001"
+    depends_on:
+      - backend
+    networks:
+      - crdent_network
+
+  adminer:
+    image: adminer
+    container_name: crdent-adminer
+    restart: unless-stopped
+    ports:
+      - "4004:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    networks:
+      - crdent_network
+
+networks:
+  crdent_network:
+    driver: bridge
+
+volumes:
+  crdent_db_data:
