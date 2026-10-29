@@ -70,6 +70,7 @@ model User {
 
     appointments        Appointment[]   @relation("AppointmentStaff")
     createdAppointments Appointment[]   @relation("AppointmentCreator")
+    workingHours        WorkingHours[]
     createdPlans        TreatmentPlan[] @relation("PlanCreator")
     doctorPlans         TreatmentPlan[] @relation("PlanDoctor")
     commissions         Commission[]    @relation("UserCommission")
@@ -130,6 +131,7 @@ model Appointment {
   createdAt      DateTime          @default(now())
   notes          String?
   visit          PatientVisit?
+  slot           Slot?
 
   @@index([patientId])
   @@index([leadId])
@@ -137,6 +139,45 @@ model Appointment {
   @@index([type])
   @@index([channel])
   @@index([createdById])
+}
+
+enum SlotStatus {
+  FREE
+  APPOINTMENT
+  LEAVE
+  LUNCH
+}
+
+model WorkingHours {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  date      DateTime
+  start     String   // HH:mm format
+  end       String   // HH:mm format
+  lunchStart String? // HH:mm format
+  lunchEnd   String? // HH:mm format
+  slots     Slot[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+model Slot {
+  id         String      @id @default(uuid()) @db.Uuid
+  workingHoursId String
+  workingHours WorkingHours @relation(fields: [workingHoursId], references: [id], onDelete: Cascade)
+  slotTime   String      // HH:mm format
+  status     SlotStatus  @default(FREE)
+  appointmentId String? @unique
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@unique([workingHoursId, slotTime])
+  @@index([workingHoursId, slotTime])
 }
 
 model Lead {

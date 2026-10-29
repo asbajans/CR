@@ -476,7 +476,7 @@ const CommissionsTab: React.FC = () => {
               <option value="ADMIN">Yönetici</option>
               <option value="DENTIST">Doktor</option>
               <option value="CALL_CENTER">Çağrı Merkezi</option>
-              <option value="SALES">Satışçı</option>
+              <option value="SALES">Sağlık Danışmanı</option>
               <option value="BANKO">Banko</option>
             </Select>
           </Field>
