@@ -4,6 +4,7 @@ import { useAppStore } from './store/appStore';
 import { ROUTES, ROLE_HOME } from './lib/constants';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopBar } from './components/layout/TopBar';
+import { useState } from 'react';
 import { Login } from './pages/auth/Login';
 import { Dashboard } from './pages/dashboard/Dashboard';
 import { CallCenter } from './pages/callcenter/CallCenter';
@@ -23,6 +24,7 @@ import { SettingsPage } from './pages/settings/SettingsPage';
 
 const App = () => {
   const { user, token, setUser } = useAppStore();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const isAuthenticated = !!token && !!user;
 
@@ -52,9 +54,9 @@ const App = () => {
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-gray-50">
-        <TopBar user={user} />
+        <TopBar user={user} onMenuClick={() => setSidebarOpen(true)} />
         <div className="flex">
-          <Sidebar user={user} />
+          <Sidebar user={user} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
           <main className="flex-1 p-4 md:p-6 min-w-0">
             <Routes>
               <Route path={ROUTES.DASHBOARD} element={<Dashboard />} />

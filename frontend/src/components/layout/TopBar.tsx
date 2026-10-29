@@ -4,7 +4,7 @@ import { ROUTES } from '../../lib/constants';
 import { ROLE_LABEL } from '../../lib/format';
 import { useNavigate } from 'react-router-dom';
 
-export const TopBar: React.FC<{ user: any }> = ({ user }) => {
+export const TopBar: React.FC<{ user: any; onMenuClick?: () => void }> = ({ user, onMenuClick }) => {
   const { logout } = useAppStore();
   const navigate = useNavigate();
 
@@ -17,6 +17,13 @@ export const TopBar: React.FC<{ user: any }> = ({ user }) => {
     <header className="sticky top-0 z-30 bg-white border-b border-slate-200">
       <div className="flex items-center justify-between px-4 md:px-6 py-3">
         <div className="flex items-center gap-3">
+          <button
+            onClick={onMenuClick}
+            className="md:hidden p-2 -ml-2 rounded-lg text-slate-700 hover:bg-slate-100"
+            aria-label="Menü"
+          >
+            <span className="text-2xl leading-none">☰</span>
+          </button>
           <span className="font-bold text-xl text-slate-900">CRDent</span>
           <span className="hidden sm:inline text-sm text-slate-500 font-medium">Diş Kliniği CRM</span>
         </div>

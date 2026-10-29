@@ -48,14 +48,14 @@ const common: Record<string, NavItem[]> = {
   ],
 };
 
-export const Sidebar: React.FC<{ user: any }> = ({ user }) => {
+export const Sidebar: React.FC<{ user: any; open?: boolean; onClose?: () => void }> = ({ user, open, onClose }) => {
   const { logout } = useAppStore();
   const navigate = useNavigate();
 
   const routes = common[user.role] || common.ADMIN;
 
-  return (
-    <aside className="hidden md:flex w-64 shrink-0 flex-col bg-white border-r border-slate-200 min-h-[calc(100vh-60px)]">
+  const content = (
+    <>
       <div className="p-6 border-b border-slate-200">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -73,6 +73,7 @@ export const Sidebar: React.FC<{ user: any }> = ({ user }) => {
             key={r.path}
             to={r.path}
             end={r.path === '/'}
+            onClick={() => onClose?.()}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -95,7 +96,29 @@ export const Sidebar: React.FC<{ user: any }> = ({ user }) => {
           🚪 Çıkış Yap
         </button>
       </div>
+    </>
+  );
+
+  const desktop = (
+    <aside className="hidden md:flex w-64 shrink-0 flex-col bg-white border-r border-slate-200 min-h-[calc(100vh-60px)]">
+      {content}
     </aside>
+  );
+
+  const mobile = open ? (
+    <div className="fixed inset-0 z-50 md:hidden">
+      <div className="absolute inset-0 bg-slate-900/50" onClick={() => onClose?.()} />
+      <aside className="absolute inset-y-0 left-0 w-64 bg-white border-r border-slate-200 flex flex-col">
+        {content}
+      </aside>
+    </div>
+  ) : null;
+
+  return (
+    <>
+      {desktop}
+      {mobile}
+    </>
   );
 };
 
