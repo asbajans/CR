@@ -261,12 +261,12 @@ export const ReportsPage: React.FC = () => {
             <Card>
               <div className="px-5 py-4 border-b border-slate-100">
                 <h2 className="font-semibold text-slate-800">Satış Performansı</h2>
-                <p className="text-xs text-slate-400">Satışçı bazında plan, satış ve ciro</p>
+                <p className="text-xs text-slate-400">Sağlık Danışmanı bazında plan, satış ve ciro</p>
               </div>
               {data.salesPerformance.length === 0 ? (
                 <Empty title="Satış kaydı yok" />
               ) : (
-                <Table head={['Satışçı', 'Görüşme', 'Plan', 'Satış', 'Ciro']}>
+                <Table head={['Sağlık Danışmanı', 'Görüşme', 'Plan', 'Satış', 'Ciro']}>
                   {data.salesPerformance.map((row: any) => (
                     <tr key={row.id}>
                       <td className="px-4 py-3 font-medium">{row.name}</td>

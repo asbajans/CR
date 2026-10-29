@@ -90,7 +90,7 @@ export const ROLE_LABEL: Record<string, string> = {
   ADMIN: 'Yönetici',
   DENTIST: 'Doktor',
   CALL_CENTER: 'Çağrı Merkezi',
-  SALES: 'Satışçı',
+  SALES: 'Sağlık Danışmanı',
   BANKO: 'Banko',
 };
 

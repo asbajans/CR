@@ -4,7 +4,7 @@ import { api } from '../../lib/api';
 import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Select, Table } from '../../components/ui';
 import { ROLE_LABEL, dateTime, fromLocalInput, money, toLocalInput } from '../../lib/format';
 
-type Tab = 'services' | 'commissions';
+type Tab = 'services' | 'commissions' | 'calendar';
 
 export const SettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('services');
@@ -13,7 +13,7 @@ export const SettingsPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Ayarlar"
-        subtitle="Hizmet / ürün yönetimi, masraf takibi ve komisyon oranları"
+        subtitle="Hizmet / ürün yönetimi, komisyon oranları ve personel takvim ayarları"
       />
 
       <div className="border-b border-slate-200 bg-white rounded-t-xl">
@@ -34,11 +34,19 @@ export const SettingsPage: React.FC = () => {
           >
             Hizmetler / Ürünler
           </button>
+          <button
+            onClick={() => setActiveTab('calendar')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition ${
+              activeTab === 'calendar' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            Personel Takvim Ayarları
+          </button>
         </nav>
       </div>
 
       <div className="px-6 pb-6">
-        {activeTab === 'services' ? <ServicesTab /> : <CommissionsTab />}
+        {activeTab === 'services' ? <ServicesTab /> : activeTab === 'commissions' ? <CommissionsTab /> : <CalendarTab />}
       </div>
     </div>
   );
@@ -533,7 +541,7 @@ const CommissionsTab: React.FC = () => {
           <Field label="Tip">
             <Select value={commissionModal.type} onChange={(e) => setCommissionModal({ ...commissionModal, type: e.target.value as any })}>
               <option value="doctor">Doktor</option>
-              <option value="sales">Satışçı</option>
+              <option value="sales">Sağlık Danışmanı</option>
               <option value="callcenter">Çağrı Merkezi</option>
               <option value="banko">Banko</option>
             </Select>
@@ -557,3 +565,203 @@ const CommissionsTab: React.FC = () => {
 };
 
 export default SettingsPage;
+
+interface CalBlock {
+  id: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+  reason?: string | null;
+}
+
+const BLOCK_LABEL: Record<string, string> = {
+  LEAVE: 'İzin',
+  LUNCH: 'Öğle Molası',
+  BLOCKED: 'Kapalı',
+};
+
+const CalendarTab: React.FC = () => {
+  const queryClient = useQueryClient();
+  const [date, setDate] = useState(() => toLocalInput(new Date()).slice(0, 10));
+  const [userId, setUserId] = useState('');
+  const [whStart, setWhStart] = useState('09:00');
+  const [whEnd, setWhEnd] = useState('18:00');
+  const [lunchStart, setLunchStart] = useState('12:00');
+  const [lunchEnd, setLunchEnd] = useState('13:00');
+  const [useLunch, setUseLunch] = useState(true);
+  const [block, setBlock] = useState({ startTime: '09:00', endTime: '10:00', status: 'LEAVE', reason: '' });
+
+  const { data: users = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => (await api.get('/users')).data.data as any[],
+  });
+
+  const staff = (users as any[]).filter((u: any) => u.role === 'DENTIST' || u.role === 'SALES');
+
+  const { data: workingHours = [] } = useQuery({
+    queryKey: ['working-hours', { date, userId }],
+    queryFn: async () =>
+      (await api.get('/schedule/working-hours', { params: { date, ...(userId ? { userId } : {}) } }))
+        .data.data as any[],
+  });
+
+  const { data: blocks = [] } = useQuery({
+    queryKey: ['schedule-blocks', { date, userId }],
+    queryFn: async () =>
+      (await api.get('/schedule/blocks', { params: { date, ...(userId ? { userId } : {}) } }))
+        .data.data as any[],
+  });
+
+  const selectedWh = (workingHours as any[]).find((w: any) => (w.user?.id || w.userId) === userId);
+
+  React.useEffect(() => {
+    if (selectedWh) {
+      setWhStart(selectedWh.start || '09:00');
+      setWhEnd(selectedWh.end || '18:00');
+      setLunchStart(selectedWh.lunchStart || '12:00');
+      setLunchEnd(selectedWh.lunchEnd || '13:00');
+      setUseLunch(!!(selectedWh.lunchStart && selectedWh.lunchEnd));
+    }
+  }, [selectedWh?.id]);
+
+  const saveWorkingHours = async () => {
+    if (!userId) {
+      alert('Personel seçin');
+      return;
+    }
+    try {
+      await api.post('/schedule/working-hours', {
+        userId,
+        date,
+        start: whStart,
+        end: whEnd,
+        lunchStart: useLunch ? lunchStart : undefined,
+        lunchEnd: useLunch ? lunchEnd : undefined,
+      });
+      queryClient.invalidateQueries({ queryKey: ['working-hours'] });
+      alert('Çalışma saatleri kaydedildi');
+    } catch (err) {
+      alert('Hata: ' + (err as Error).message);
+    }
+  };
+
+  const addBlock = async () => {
+    if (!userId) {
+      alert('Personel seçin');
+      return;
+    }
+    try {
+      await api.post('/schedule/blocks', { userId, date, ...block });
+      queryClient.invalidateQueries({ queryKey: ['schedule-blocks'] });
+      setBlock({ startTime: '09:00', endTime: '10:00', status: 'LEAVE', reason: '' });
+    } catch (err) {
+      alert('Hata: ' + (err as Error).message);
+    }
+  };
+
+  const removeBlock = async (id: string) => {
+    if (!confirm('Bu kapatmayı silmek istiyor musunuz?')) return;
+    await api.delete(`/schedule/blocks/${id}`);
+    queryClient.invalidateQueries({ queryKey: ['schedule-blocks'] });
+  };
+
+  return (
+    <div className="space-y-6 pt-4">
+      <Card className="p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Field label="Personel">
+            <Select value={userId} onChange={(e) => setUserId(e.target.value)}>
+              <option value="">Personel seçin</option>
+              {staff.map((u: any) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} ({ROLE_LABEL[u.role] || u.role})
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Tarih">
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </Field>
+        </div>
+      </Card>
+
+      <Card className="p-4 space-y-4">
+        <h3 className="font-semibold text-slate-800">Çalışma Saatleri</h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Field label="Başlangıç">
+            <Input type="time" value={whStart} onChange={(e) => setWhStart(e.target.value)} />
+          </Field>
+          <Field label="Bitiş">
+            <Input type="time" value={whEnd} onChange={(e) => setWhEnd(e.target.value)} />
+          </Field>
+          <Field label="Öğle Başlangıç">
+            <Input type="time" value={lunchStart} onChange={(e) => setLunchStart(e.target.value)} disabled={!useLunch} />
+          </Field>
+          <Field label="Öğle Bitiş">
+            <Input type="time" value={lunchEnd} onChange={(e) => setLunchEnd(e.target.value)} disabled={!useLunch} />
+          </Field>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <input type="checkbox" checked={useLunch} onChange={(e) => setUseLunch(e.target.checked)} />
+          Öğle arası tanımla
+        </label>
+        <Button onClick={saveWorkingHours} disabled={!userId}>
+          Çalışma Saatlerini Kaydet
+        </Button>
+      </Card>
+
+      <Card className="p-4 space-y-4">
+        <h3 className="font-semibold text-slate-800">Slot Kapatma (İzin / Mola)</h3>
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <Field label="Başlangıç">
+            <Input type="time" value={block.startTime} onChange={(e) => setBlock({ ...block, startTime: e.target.value })} />
+          </Field>
+          <Field label="Bitiş">
+            <Input type="time" value={block.endTime} onChange={(e) => setBlock({ ...block, endTime: e.target.value })} />
+          </Field>
+          <Field label="Durum">
+            <Select value={block.status} onChange={(e) => setBlock({ ...block, status: e.target.value })}>
+              <option value="LEAVE">İzin</option>
+              <option value="LUNCH">Öğle Molası</option>
+              <option value="BLOCKED">Kapalı / Diğer</option>
+            </Select>
+          </Field>
+          <Field label="Açıklama">
+            <Input value={block.reason} onChange={(e) => setBlock({ ...block, reason: e.target.value })} placeholder="Opsiyonel" />
+          </Field>
+          <div className="flex items-end">
+            <Button onClick={addBlock} disabled={!userId} className="w-full">
+              Ekle
+            </Button>
+          </div>
+        </div>
+
+        {(blocks as CalBlock[]).length === 0 ? (
+          <Empty title="Kayıtlı kapatma yok" hint={userId ? 'Bu personel için kapatma ekleyin.' : 'Önce personel seçin.'} />
+        ) : (
+          <Table head={['Personel', 'Tarih', 'Aralık', 'Durum', 'Açıklama', 'İşlem']}>
+            {(blocks as any[]).map((b: any) => (
+              <tr key={b.id}>
+                <td className="px-4 py-3">{b.user?.name || '-'}</td>
+                <td className="px-4 py-3">{String(b.date).slice(0, 10)}</td>
+                <td className="px-4 py-3 font-mono text-xs">
+                  {b.startTime} - {b.endTime}
+                </td>
+                <td className="px-4 py-3">
+                  <Badge tone={b.status === 'LUNCH' ? 'amber' : 'slate'}>{BLOCK_LABEL[b.status] || b.status}</Badge>
+                </td>
+                <td className="px-4 py-3 text-slate-500">{b.reason || '-'}</td>
+                <td className="px-4 py-3 text-right">
+                  <Button size="sm" variant="danger" onClick={() => removeBlock(b.id)}>
+                    Sil
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </Table>
+        )}
+      </Card>
+    </div>
+  );
+};

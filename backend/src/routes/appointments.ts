@@ -21,6 +21,7 @@ const appointmentSchema = z
     channel: z.string().optional(),
     campaignId: z.string().uuid().optional().nullable(),
     appointmentDate: z.string().datetime(),
+    endDate: z.string().datetime().optional().nullable(),
     notes: z.string().optional(),
   })
   .refine((data) => !!data.patientId || !!data.leadId, {
@@ -36,6 +37,7 @@ const appointmentUpdateSchema = z.object({
   channel: z.string().optional(),
   campaignId: z.string().uuid().nullable().optional(),
   appointmentDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional().nullable(),
   notes: z.string().optional(),
 });
 
@@ -192,6 +194,7 @@ router.post(
         channel: resolved.channel,
         campaignId: resolved.campaignId,
         appointmentDate: new Date(data.appointmentDate),
+        endDate: data.endDate ? new Date(data.endDate) : null,
         notes: data.notes,
       },
       include: includeRelations,
@@ -227,7 +230,7 @@ router.patch(
       }
     }
 
-    const { userId, appointmentDate, campaignId, ...rest } = data;
+    const { userId, appointmentDate, endDate, campaignId, ...rest } = data;
     const appointment = await prisma.appointment.update({
       where: { id: req.params.id },
       data: {
@@ -235,6 +238,7 @@ router.patch(
         ...(userId !== undefined ? { userId } : {}),
         ...(campaignId !== undefined ? { campaignId } : {}),
         ...(appointmentDate ? { appointmentDate: new Date(appointmentDate) } : {}),
+        ...(endDate !== undefined ? { endDate: endDate ? new Date(endDate) : null } : {}),
       },
       include: includeRelations,
     });

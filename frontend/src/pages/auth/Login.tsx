@@ -18,7 +18,7 @@ const demoAccounts = [
   { label: 'Doktor', email: 'doktor@crdent.com', name: 'Dr. Mehmet Kaya' },
   { label: 'Doktor 2', email: 'doktor2@crdent.com', name: 'Dr. Elif Demir' },
   { label: 'Çağrı Merkezi', email: 'cagri@crdent.com', name: 'Zeynep Şahin' },
-  { label: 'Satışçı', email: 'satis@crdent.com', name: 'Burak Aydın' },
+  { label: 'Sağlık Danışmanı', email: 'satis@crdent.com', name: 'Burak Aydın' },
   { label: 'Banko', email: 'banko@crdent.com', name: 'Fatma Çelik' },
 ];
 

@@ -17,6 +17,7 @@ import dashboardRoutes from './routes/dashboard';
 import visitRoutes from './routes/visits';
 import reportRoutes from './routes/reports';
 import settingsRoutes from './routes/settings';
+import scheduleRoutes from './routes/schedule';
 
 dotenv.config();
 
@@ -48,6 +49,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/visits', visitRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/schedule', scheduleRoutes);
 
 app.use(errorHandler);
 

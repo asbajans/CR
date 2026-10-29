@@ -40,6 +40,7 @@ const emptyForm = {
   channel: '',
   campaignId: '',
   dateTime: toLocalInput(new Date(Date.now() + 3600000)),
+  endTime: '',
   notes: '',
 };
 
@@ -59,6 +60,18 @@ export const AppointmentsPage: React.FC = () => {
   const [selectedSlot, setSelectedSlot] = useState<{ slot: string; column: any; appt?: any } | null>(null);
   const [slotMenuAnchor, setSlotMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const slotMenuRef = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<{ columnId: string; userName: string; slots: string[] } | null>(null);
+  const [slotMode, setSlotMode] = useState<'appointment' | 'block'>('appointment');
+  const dragRef = useRef<{ columnId: string; userName: string; slots: string[] } | null>(null);
+  const [blockModal, setBlockModal] = useState<{
+    userId: string;
+    userName: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    status: string;
+    reason: string;
+  } | null>(null);
 
   const canCreate = ['ADMIN', 'CALL_CENTER', 'SALES', 'BANKO'].includes(user?.role || '');
   const canArrive = ['ADMIN', 'CALL_CENTER', 'SALES', 'BANKO'].includes(user?.role || '');
@@ -67,7 +80,7 @@ export const AppointmentsPage: React.FC = () => {
   const { data: workingHours = [] } = useQuery({
     queryKey: ['working-hours', { date }],
     queryFn: async () => {
-      const res = await api.get('/settings/working-hours', { params: { date } });
+      const res = await api.get('/schedule/working-hours', { params: { date } });
       return res.data.data as any[];
     },
   });
@@ -81,7 +94,13 @@ export const AppointmentsPage: React.FC = () => {
   //   },
   // });
 
-  const workingHoursData = workingHours.find((wh: any) => String(wh.date) === date);
+  const { data: scheduleBlocks = [] } = useQuery({
+    queryKey: ['schedule-blocks', { date }],
+    queryFn: async () => {
+      const res = await api.get('/schedule/blocks', { params: { date } });
+      return res.data.data as any[];
+    },
+  });
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -183,13 +202,86 @@ export const AppointmentsPage: React.FC = () => {
     let start = '09:00';
     let end = '18:00';
 
-    if (workingHoursData) {
-      start = workingHoursData.startTime || '09:00';
-      end = workingHoursData.endTime || '18:00';
+    const list = workingHours as any[];
+    if (list.length) {
+      const starts = list.map((w) => w.start).filter(Boolean).sort();
+      const ends = list.map((w) => w.end).filter(Boolean).sort();
+      if (starts.length) start = starts[0];
+      if (ends.length) end = ends[ends.length - 1];
     }
 
     return generateTimeSlots(start, end, 15);
-  }, [workingHoursData]);
+  }, [workingHours]);
+
+  const toMin = (t: string) => {
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  const addMinutes = (t: string, mins: number) => {
+    const total = toMin(t) + mins;
+    const h = Math.floor(total / 60).toString().padStart(2, '0');
+    const m = (total % 60).toString().padStart(2, '0');
+    return `${h}:${m}`;
+  };
+
+  const slotTimeOf = (d: any) => String(d || '').slice(11, 16);
+
+  const apptAt = useMemo(
+    () => (c: any, slot: string) =>
+      c.appointments.find((a: any) => {
+        const start = slotTimeOf(a.appointmentDate);
+        const end = a.endDate ? slotTimeOf(a.endDate) : addMinutes(start, 30);
+        const t = toMin(slot);
+        return t >= toMin(start) && t < toMin(end);
+      }),
+    []
+  );
+
+  const blockAt = (userId: string, slot: string) => {
+    const t = toMin(slot);
+    return (scheduleBlocks as any[]).find((b: any) => {
+      const uid = b.user?.id || b.userId;
+      return uid === userId && t >= toMin(b.startTime) && t < toMin(b.endTime);
+    });
+  };
+
+  const workingHoursFor = (userId: string) =>
+    (workingHours as any[]).find((w: any) => (w.user?.id || w.userId) === userId);
+
+  const isOutsideWork = (userId: string, slot: string) => {
+    const wh = workingHoursFor(userId);
+    if (!wh) return false;
+    const t = toMin(slot);
+    if (t < toMin(wh.start) || t >= toMin(wh.end)) return true;
+    if (wh.lunchStart && wh.lunchEnd && t >= toMin(wh.lunchStart) && t < toMin(wh.lunchEnd)) return true;
+    return false;
+  };
+
+  useEffect(() => {
+    dragRef.current = drag;
+  }, [drag]);
+
+  useEffect(() => {
+    const up = () => {
+      const d = dragRef.current;
+      if (d && d.slots.length && slotMode === 'block') {
+        const sorted = [...d.slots].sort((a, b) => toMin(a) - toMin(b));
+        setBlockModal({
+          userId: d.columnId,
+          userName: d.userName,
+          date,
+          startTime: sorted[0],
+          endTime: addMinutes(sorted[sorted.length - 1], 15),
+          status: 'LEAVE',
+          reason: '',
+        });
+      }
+      setDrag(null);
+    };
+    window.addEventListener('mouseup', up);
+    return () => window.removeEventListener('mouseup', up);
+  }, [date, slotMode]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['appointments'] });
@@ -201,6 +293,7 @@ export const AppointmentsPage: React.FC = () => {
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      const datePart = form.dateTime.slice(0, 10);
       await api.post('/appointments', {
         ...(form.target === 'patient' ? { patientId: form.patientId } : { leadId: form.leadId }),
         type: form.type,
@@ -208,6 +301,7 @@ export const AppointmentsPage: React.FC = () => {
         channel: form.channel || undefined,
         campaignId: form.campaignId || undefined,
         appointmentDate: fromLocalInput(form.dateTime),
+        endDate: form.endTime ? fromLocalInput(`${datePart}T${form.endTime}`) : undefined,
         notes: form.notes || undefined,
       });
     },
@@ -247,6 +341,26 @@ export const AppointmentsPage: React.FC = () => {
     onError: (err) => alert(apiError(err)),
   });
 
+  const blockMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      await api.post('/schedule/blocks', payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['schedule-blocks'] });
+      setBlockModal(null);
+      setDrag(null);
+    },
+    onError: (err) => alert(apiError(err)),
+  });
+
+  const deleteBlockMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/schedule/blocks/${id}`);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['schedule-blocks'] }),
+    onError: (err) => alert(apiError(err)),
+  });
+
 
   return (
     <div className="space-y-6">
@@ -280,6 +394,25 @@ export const AppointmentsPage: React.FC = () => {
             Takvim
           </Button>
         </div>
+
+        {view === 'slots' && (
+          <div className="flex items-center gap-2 rounded-lg bg-slate-100 p-1">
+            <Button
+              size="sm"
+              variant={slotMode === 'appointment' ? 'primary' : 'secondary'}
+              onClick={() => setSlotMode('appointment')}
+            >
+              Randevu Ver
+            </Button>
+            <Button
+              size="sm"
+              variant={slotMode === 'block' ? 'primary' : 'secondary'}
+              onClick={() => setSlotMode('block')}
+            >
+              Slot Kapat (İzin/Mola)
+            </Button>
+          </div>
+        )}
 
         <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="max-w-[170px]" />
 
@@ -321,77 +454,175 @@ export const AppointmentsPage: React.FC = () => {
           <LoadingText />
         ) : view === 'slots' ? (
           <>
-            {workingHoursData && (
-              <div className="mb-3 flex gap-4 text-xs">
-                <span className="text-slate-600">
-                   Çalışma Saatleri: <strong>{workingHoursData.start || '09:00'} - {workingHoursData.end || '18:00'}</strong>
-                </span>
-                {workingHoursData.lunchStart && workingHoursData.lunchEnd && (
-                  <span className="text-slate-600">
-                    Öğle Arası: <strong>{workingHoursData.lunchStart} - {workingHoursData.lunchEnd}</strong>
-                  </span>
-                )}
-              </div>
-            )}
-            <Table
-              head={['Saat', ...slotColumns.map((c: any) => `${c.name} - ${ROLE_LABEL[c.role] || c.role}`)]}
-            >
-              {slotSlots.map((slot) => (
-                <tr key={slot}>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{slot}</td>
-                  {slotColumns.map((c: any) => {
-                    const appt = c.appointments.find((a: any) => String(a.appointmentDate || '').slice(11, 16) === slot);
-                    
-                    const handleClick = (e: React.MouseEvent) => {
-                      e.stopPropagation();
-                      if (appt) {
-                        setSelectedSlot({ slot, column: c, appt });
-                        setSlotMenuAnchor({ x: e.clientX, y: e.clientY });
-                      } else {
-                        setForm({
-                          ...emptyForm,
-                          target: 'patient',
-                          patientId: '',
-                          leadId: '',
-                          type: c.role === 'DENTIST' ? 'DENTIST' : 'MEETING',
-                          userId: c.id,
-                          dateTime: toLocalInput(new Date(`${date}T${slot}`)),
-                          notes: '',
-                        });
-                        setCreateOpen(true);
-                      }
-                    };
+            <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-3 w-3 rounded-sm bg-blue-100" /> Görüşme
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-3 w-3 rounded-sm bg-emerald-100" /> Muayene / Tedavi
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-3 w-3 rounded-sm bg-amber-100" /> Öğle
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-3 w-3 rounded-sm bg-slate-200" /> İzin / Kapalı
+              </span>
+              <span className="text-slate-400">
+                {slotMode === 'block'
+                  ? 'Fareyle slotları sürükleyip seçin, bıraktığınızda kapatma penceresi açılır.'
+                  : 'Boş slota tıklayarak randevu verin. Toplu kapatmak için "Slot Kapat" moduna geçin.'}
+              </span>
+            </div>
+            <div className="overflow-x-auto" onMouseLeave={() => setDrag(null)}>
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr>
+                    <th className="sticky left-0 z-10 border border-slate-200 bg-slate-50 px-2 py-2 text-left text-xs font-semibold text-slate-500">
+                      Saat
+                    </th>
+                    {slotColumns.map((c: any) => (
+                      <th
+                        key={c.id}
+                        className="border border-slate-200 bg-slate-50 px-2 py-2 text-left text-xs font-semibold text-slate-700"
+                      >
+                        {c.name}
+                        <span className="ml-1 font-normal text-slate-400">
+                          - {ROLE_LABEL[c.role] || c.role}
+                        </span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {slotSlots.map((slot) => (
+                    <tr key={slot}>
+                      <td className="sticky left-0 z-10 border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-xs text-slate-500">
+                        {slot}
+                      </td>
+                      {slotColumns.map((c: any) => {
+                        const appt = apptAt(c, slot);
+                        const block = blockAt(c.id, slot);
+                        const outside = isOutsideWork(c.id, slot);
+                        const isSelected = !!(drag && drag.columnId === c.id && drag.slots.includes(slot));
 
-                    if (appt) {
-                      const tone = appt.type === 'MEETING' ? 'bg-blue-50 text-blue-700 border-blue-200 cursor-pointer hover:bg-blue-100' : 'bg-emerald-50 text-emerald-700 border-emerald-200 cursor-pointer hover:bg-emerald-100';
-                      return (
-                        <td 
-                          key={c.id} 
-                          className={`px-4 py-3 border-t border-slate-100 ${tone}`}
-                          onClick={handleClick}
-                        >
-                          <p className="font-semibold text-slate-900">
-                            {appt.patient?.name || appt.lead?.name || '-'} {appt.patient?.surname || appt.lead?.surname || ''}
-                          </p>
-                          <p className="text-xs text-slate-600">{appt.channel || 'Bilinmiyor'}</p>
-                          <p className="text-xs text-slate-500">{APPT_TYPE_LABEL[appt.type] || appt.type}</p>
-                        </td>
-                      );
-                    } else {
-                      return (
-                        <td 
-                          key={c.id} 
-                          className="px-4 py-3 border-t border-slate-100 text-slate-400 cursor-pointer hover:bg-slate-50 hover:text-slate-600"
-                          onClick={handleClick}
-                        >
-                          -
-                        </td>
-                      );
-                    }
-                  })}
-                </tr>
-              ))}
-            </Table>
+                        if (appt) {
+                          const start = slotTimeOf(appt.appointmentDate);
+                          const isStart = start === slot;
+                          const tone =
+                            appt.type === 'MEETING'
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'bg-emerald-50 text-emerald-700';
+                          return (
+                            <td
+                              key={c.id}
+                              className={`border border-slate-200 px-2 py-1 align-top cursor-pointer ${tone}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedSlot({ slot, column: c, appt });
+                                setSlotMenuAnchor({ x: e.clientX, y: e.clientY });
+                              }}
+                            >
+                              {isStart ? (
+                                <>
+                                  <p className="text-xs font-semibold text-slate-900">
+                                    {appt.patient?.name || appt.lead?.name || '-'}{' '}
+                                    {appt.patient?.surname || appt.lead?.surname || ''}
+                                  </p>
+                                  <p className="text-[10px] text-slate-500">
+                                    {appt.channel || 'Bilinmiyor'}
+                                  </p>
+                                  <p className="text-[10px] text-slate-400">
+                                    {APPT_TYPE_LABEL[appt.type] || appt.type}
+                                  </p>
+                                </>
+                              ) : (
+                                <span className="text-[10px] opacity-60">↳</span>
+                              )}
+                            </td>
+                          );
+                        }
+
+                        if (block) {
+                          const label =
+                            block.status === 'LUNCH'
+                              ? 'Öğle'
+                              : block.status === 'LEAVE'
+                              ? 'İzin'
+                              : 'Kapalı';
+                          const tone =
+                            block.status === 'LUNCH'
+                              ? 'bg-amber-50 text-amber-700'
+                              : 'bg-slate-200 text-slate-600';
+                          return (
+                            <td
+                              key={c.id}
+                              title={block.reason || label}
+                              className={`border border-slate-200 px-2 py-1 text-center text-[10px] cursor-pointer ${tone}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm('Bu kapatmayı kaldırmak istiyor musunuz?'))
+                                  deleteBlockMutation.mutate(block.id);
+                              }}
+                            >
+                              {label}
+                            </td>
+                          );
+                        }
+
+                        const base = outside
+                          ? 'bg-slate-100 text-slate-300'
+                          : 'hover:bg-slate-50 text-slate-300';
+                        return (
+                          <td
+                            key={c.id}
+                            className={`border border-slate-200 px-2 py-1 align-top ${base} ${
+                              slotMode === 'block' ? 'cursor-crosshair' : 'cursor-pointer'
+                            }`}
+                            style={
+                              isSelected
+                                ? { backgroundColor: '#dbeafe', color: '#1d4ed8' }
+                                : undefined
+                            }
+                            onMouseDown={() => {
+                              if (slotMode === 'block') {
+                                setDrag({ columnId: c.id, userName: c.name, slots: [slot] });
+                              }
+                            }}
+                            onMouseEnter={() => {
+                              if (slotMode === 'block') {
+                                setDrag((d) =>
+                                  d && d.columnId === c.id && !d.slots.includes(slot)
+                                    ? { ...d, slots: [...d.slots, slot] }
+                                    : d
+                                );
+                              }
+                            }}
+                            onClick={(e) => {
+                              if (slotMode === 'appointment' && !isSelected) {
+                                e.stopPropagation();
+                                setForm({
+                                  ...emptyForm,
+                                  target: 'patient',
+                                  patientId: '',
+                                  leadId: '',
+                                  type: c.role === 'DENTIST' ? 'DENTIST' : 'MEETING',
+                                  userId: c.id,
+                                  dateTime: toLocalInput(new Date(`${date}T${slot}`)),
+                                  notes: '',
+                                });
+                                setCreateOpen(true);
+                              }
+                            }}
+                          >
+                            {isSelected ? '✓' : '-'}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             {slotMenuAnchor && selectedSlot && (
               <div 
                 ref={slotMenuRef}
@@ -663,13 +894,22 @@ export const AppointmentsPage: React.FC = () => {
           </Field>
         </div>
 
-        <Field label="Tarih ve Saat *">
-          <Input
-            type="datetime-local"
-            value={form.dateTime}
-            onChange={(e) => setForm({ ...form, dateTime: e.target.value })}
-          />
-        </Field>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Field label="Başlangıç Tarihi ve Saati *">
+            <Input
+              type="datetime-local"
+              value={form.dateTime}
+              onChange={(e) => setForm({ ...form, dateTime: e.target.value })}
+            />
+          </Field>
+          <Field label="Bitiş Saati" hint="Boş bırakılırsa randevu 30 dk kabul edilir.">
+            <Input
+              type="time"
+              value={form.endTime}
+              onChange={(e) => setForm({ ...form, endTime: e.target.value })}
+            />
+          </Field>
+        </div>
 
         <Field label="Not">
           <Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
@@ -697,6 +937,67 @@ export const AppointmentsPage: React.FC = () => {
         <Field label="Yeni Tarih ve Saat">
           <Input type="datetime-local" value={rescheduleDate} onChange={(e) => setRescheduleDate(e.target.value)} />
         </Field>
+      </Modal>
+
+      <Modal
+        open={!!blockModal}
+        onClose={() => setBlockModal(null)}
+        title={`Slot Kapat - ${blockModal?.userName || ''}`}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setBlockModal(null)}>
+              Vazgeç
+            </Button>
+            <Button
+              onClick={() => blockModal && blockMutation.mutate(blockModal)}
+              disabled={blockMutation.isPending}
+            >
+              {blockMutation.isPending ? 'Kaydediliyor...' : 'Kapat'}
+            </Button>
+          </>
+        }
+      >
+        {blockModal && (
+          <>
+            <p className="text-sm text-slate-600">
+              <strong>{blockModal.date}</strong> tarihinde{' '}
+              <strong>{blockModal.userName}</strong> için seçilen aralık kapatılacak.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Başlangıç">
+                <Input
+                  type="time"
+                  value={blockModal.startTime}
+                  onChange={(e) => setBlockModal({ ...blockModal, startTime: e.target.value })}
+                />
+              </Field>
+              <Field label="Bitiş">
+                <Input
+                  type="time"
+                  value={blockModal.endTime}
+                  onChange={(e) => setBlockModal({ ...blockModal, endTime: e.target.value })}
+                />
+              </Field>
+            </div>
+            <Field label="Durum">
+              <Select
+                value={blockModal.status}
+                onChange={(e) => setBlockModal({ ...blockModal, status: e.target.value })}
+              >
+                <option value="LEAVE">İzin</option>
+                <option value="LUNCH">Öğle Molası</option>
+                <option value="BLOCKED">Kapalı / Diğer</option>
+              </Select>
+            </Field>
+            <Field label="Açıklama">
+              <Input
+                value={blockModal.reason}
+                onChange={(e) => setBlockModal({ ...blockModal, reason: e.target.value })}
+                placeholder="Örn: Yıllık izin, toplantı..."
+              />
+            </Field>
+          </>
+        )}
       </Modal>
     </div>
   );

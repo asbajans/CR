@@ -36,7 +36,7 @@ export const Sales: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Satışçı Paneli"
+        title="Sağlık Danışmanı Paneli"
         subtitle="Görüşme randevuları, tedavi planı hazırlığı ve lead takibi"
       />
 
