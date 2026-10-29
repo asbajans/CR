@@ -148,8 +148,13 @@ jobs:
       - name: Test frontend container
         run: |
           docker run --rm -d --name frontend-test -p 3000:80 crdent-frontend:test
-          sleep 5
-          curl -f http://localhost:3000/ || (docker logs frontend-test && exit 1)
+          sleep 3
+          echo "=== Container status ==="
+          docker ps -a --filter name=frontend-test
+          echo "=== Container logs ==="
+          docker logs frontend-test
+          echo "=== Testing connection ==="
+          curl -f http://localhost:3000/ || (echo "curl failed" && docker stop frontend-test && exit 1)
           docker stop frontend-test
 
       - name: Test backend container
