@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { useAppStore } from '../../store/appStore';
-import { Badge, Button, Card, Empty, Field, Input, LoadingText, Modal, PageHeader, Select, Table } from '../../components/ui';
+import { Badge, Button, Card, Empty, Field, Input, LoadingText, Modal, PageHeader, SearchSelect, Select, Table } from '../../components/ui';
 import {
   INVOICE_STATUS_LABEL,
   PLAN_STATUS_LABEL,
@@ -26,7 +26,7 @@ export const TreatmentPage: React.FC = () => {
   const [items, setItems] = useState<ItemForm[]>([newItem()]);
   const [discount, setDiscount] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
-  const [serviceQuery, setServiceQuery] = useState('');
+
 
   const canManage = ['ADMIN', 'SALES', 'DENTIST'].includes(user?.role || '');
 
@@ -45,11 +45,10 @@ export const TreatmentPage: React.FC = () => {
     queryFn: async () => (await api.get('/settings/services')).data.data as any[],
   });
 
-  const filteredServices = (services || []).filter((s: any) => {
-    const q = (serviceQuery || '').trim().toLowerCase();
-    if (!q) return true;
-    return String(s.category || '').toLowerCase().includes(q) || String(s.name || '').toLowerCase().includes(q);
-  });
+  const serviceOptions = [
+    { value: '', label: 'Hizmet Secin' },
+    ...(services || []).map((s: any) => ({ value: s.id, label: `${s.category} - ${s.name} (${String(s.price)})` })),
+  ];
 
   const { data: allUsers = [] } = useQuery({
     queryKey: ['users'],
@@ -102,7 +101,6 @@ export const TreatmentPage: React.FC = () => {
       setItems([newItem()]);
       setDiscount('');
       setPaymentNote('');
-      setServiceQuery('');
     },
     onError: (err) => alert(apiError(err)),
   });
@@ -130,7 +128,7 @@ export const TreatmentPage: React.FC = () => {
       <PageHeader
         title="Tedavi Planları"
         subtitle="Tedavi kalemleri, fiyatlar, onay ve uygulama durumu"
-        action={canManage ? <Button onClick={() => { setServiceQuery(''); setCreateOpen(true); }}>+ Yeni Tedavi Planı</Button> : undefined}
+        action={canManage ? <Button onClick={() => setCreateOpen(true)}>+ Yeni Tedavi Planı</Button> : undefined}
       />
 
       <Card>
@@ -235,10 +233,7 @@ export const TreatmentPage: React.FC = () => {
         </div>
 
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-medium text-slate-700">Tedavi Kalemleri</p>
-            <Input placeholder="Hizmet Ara" value={serviceQuery} onChange={(e) => setServiceQuery(e.target.value)} className="w-64" />
-          </div>
+          <p className="text-sm font-medium text-slate-700">Tedavi Kalemleri</p>
           {items.map((item, index) => (
             <div key={index} className="grid grid-cols-12 gap-2 items-end">
               <div className="col-span-2">
@@ -253,27 +248,22 @@ export const TreatmentPage: React.FC = () => {
                 />
               </div>
               <div className="col-span-3">
-                <Select
+                <SearchSelect
                   value={item.serviceId}
-                  onChange={(e) => {
+                  onChange={(serviceId) => {
                     const next = [...items];
-                    const service = filteredServices.find((s: any) => s.id === e.target.value);
+                    const service = (services || []).find((s: any) => s.id === serviceId);
                     next[index] = {
                       ...item,
-                      serviceId: e.target.value,
+                      serviceId,
                       treatment: service ? `${service.category} - ${service.name}` : item.treatment,
                       price: service ? String(service.price) : item.price,
                     };
                     setItems(next);
                   }}
-                >
-                  <option value="">Hizmet Seçin</option>
-                  {filteredServices.map((s: any) => (
-                    <option key={s.id} value={s.id}>
-                      {s.category} - {s.name} ({String(s.price)}₺)
-                    </option>
-                  ))}
-                </Select>
+                  options={serviceOptions}
+                  placeholder="Hizmet Secin"
+                />
               </div>
               <div className="col-span-2">
                 <Input

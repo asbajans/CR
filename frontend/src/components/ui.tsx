@@ -97,6 +97,69 @@ export const Select: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = (
   </select>
 );
 
+export const SearchSelect: React.FC<{
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+  className?: string;
+}> = ({ value, onChange, options, placeholder = 'Secin', className = '' }) => {
+  const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState('');
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const selectedLabel = options.find((o) => o.value === value)?.label || placeholder;
+
+  const filteredOptions = options.filter((o) => (o.label || '').toLowerCase().includes((query || '').trim().toLowerCase()));
+
+  const handleSelect = (v: string) => {
+    onChange(v);
+    setOpen(false);
+    setQuery('');
+  };
+
+  return (
+    <div ref={containerRef} className={`relative ${className}`}>
+      <input
+        readOnly
+        value={selectedLabel}
+        onClick={() => setOpen((o) => !o)}
+        placeholder={placeholder}
+        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+      />
+      {open && (
+        <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Ara..."
+            className="w-full px-3 py-2 text-sm border-b border-slate-200 outline-none"
+          />
+          {filteredOptions.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-slate-400">Sonuc bulunamadi</div>
+          ) : (
+            filteredOptions.map((o) => (
+              <button key={o.value} type="button" onClick={() => handleSelect(o.value)} className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50">
+                {o.label}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const Textarea: React.FC<React.TextareaHTMLAttributes<HTMLTextAreaElement>> = ({ className = '', ...props }) => (
   <textarea {...props} className={`${controlClass} ${className}`} />
 );
