@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAppStore } from './store/appStore';
 import { ROUTES, ROLE_DASHBOARD } from './lib/constants';
@@ -13,10 +13,21 @@ import { Banko } from './pages/banko/Banko';
 import { Admin } from './pages/admin/Admin';
 
 const App = () => {
-  const { user, token } = useAppStore();
+  const { user, token, setUser } = useAppStore();
   const location = useLocation();
 
   const isAuthenticated = !!token && !!user;
+
+  useEffect(() => {
+    const saved = localStorage.getItem('crdent_user');
+    const savedToken = localStorage.getItem('crdent_token');
+    if (saved && savedToken && !user) {
+      try {
+        const parsed = JSON.parse(saved);
+        setUser(parsed, savedToken);
+      } catch {}
+    }
+  }, [user, setUser]);
 
   if (!isAuthenticated) {
     return (

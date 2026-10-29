@@ -5,19 +5,8 @@ import { ROUTES } from '../../lib/constants';
 import { useNavigate } from 'react-router-dom';
 
 export const TopBar: React.FC<{ user: any }> = ({ user }) => {
-  const { user: storeUser, logout } = useAppStore();
+  const { logout } = useAppStore();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    const saved = localStorage.getItem('crdent_user');
-    const token = localStorage.getItem('crdent_token');
-    if (saved && token && !storeUser) {
-      try {
-        const parsed = JSON.parse(saved);
-        storeUser && useAppStore.setState({ user: parsed, token });
-      } catch {}
-    }
-  }, [storeUser]);
 
   const handleLogout = () => {
     logout();
@@ -33,9 +22,9 @@ export const TopBar: React.FC<{ user: any }> = ({ user }) => {
         </div>
         <div className="flex items-center gap-4">
           <div className="hidden md:flex items-center gap-2 text-sm text-slate-600">
-            <span className="font-medium">{user.name}</span>
+            <span className="font-medium">{user?.name}</span>
             <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-700 text-xs font-bold">
-              {user.role}
+              {user?.role}
             </span>
           </div>
           <button
