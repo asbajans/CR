@@ -6,7 +6,7 @@ COPY package*.json ./
 RUN npm install --legacy-peer-deps
 
 COPY . .
-RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build --verbose
+RUN ls -la && echo "Files copied successfully" && NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
 FROM nginx:alpine
 
