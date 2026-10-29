@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { useAppStore } from '../../store/appStore';
@@ -56,10 +56,47 @@ export const AppointmentsPage: React.FC = () => {
   const [form, setForm] = useState({ ...emptyForm });
   const [reschedule, setReschedule] = useState<any>(null);
   const [rescheduleDate, setRescheduleDate] = useState('');
+  const [selectedSlot, setSelectedSlot] = useState<{ slot: string; column: any; appt?: any } | null>(null);
+  const [slotMenuAnchor, setSlotMenuAnchor] = useState<{ x: number; y: number } | null>(null);
+  const slotMenuRef = useRef<HTMLDivElement>(null);
 
   const canCreate = ['ADMIN', 'CALL_CENTER', 'SALES', 'BANKO'].includes(user?.role || '');
   const canArrive = ['ADMIN', 'CALL_CENTER', 'SALES', 'BANKO'].includes(user?.role || '');
   const canReschedule = canCreate;
+
+  const { data: workingHours = [] } = useQuery({
+    queryKey: ['working-hours', { date }],
+    queryFn: async () => {
+      const res = await api.get('/settings/working-hours', { params: { date } });
+      return res.data.data as any[];
+    },
+  });
+
+  // TODO: use slots query for slot status management
+  // const { data: slots = [] } = useQuery({
+  //   queryKey: ['slots', { date }],
+  //   queryFn: async () => {
+  //     const res = await api.get('/settings/slots', { params: { date } });
+  //     return res.data.data as any[];
+  //   },
+  // });
+
+  const workingHoursData = workingHours.find((wh: any) => String(wh.date) === date);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (slotMenuAnchor && slotMenuRef.current && !slotMenuRef.current.contains(event.target as Node)) {
+        setSlotMenuAnchor(null);
+        setSelectedSlot(null);
+      }
+    };
+    if (slotMenuAnchor) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [slotMenuAnchor]);
 
   const { data: appointments = [], isLoading } = useQuery({
     queryKey: ['appointments', { status, type, scope, channel }],
@@ -101,6 +138,8 @@ export const AppointmentsPage: React.FC = () => {
     [staff, form.type]
   );
 
+  const allStaff = useMemo(() => staff, [staff]);
+
   const visibleAppointments = useMemo(() => {
     const base = date ? appointments.filter((a) => String(a.appointmentDate || '').slice(0, 10) === date) : appointments;
     if (scope === 'today') return base.filter((a) => isToday(a.appointmentDate));
@@ -116,35 +155,41 @@ export const AppointmentsPage: React.FC = () => {
     return { todays, pending, leadBookings };
   }, [visibleAppointments]);
 
+  const generateTimeSlots = (start: string, end: string, intervalMin: number = 15): string[] => {
+    const [startH, startM] = start.split(':').map(Number);
+    const [endH, endM] = end.split(':').map(Number);
+    const from = startH * 60 + startM;
+    const to = endH * 60 + endM;
+    const slots: string[] = [];
+    for (let m = from; m <= to; m += intervalMin) {
+      const h = Math.floor(m / 60).toString().padStart(2, '0');
+      const mm = (m % 60).toString().padStart(2, '0');
+      slots.push(`${h}:${mm}`);
+    }
+    return slots;
+  };
+
   const slotColumns = useMemo(() => {
-    const source = form.type === 'MEETING' ? staff.filter((s: any) => s.role === 'SALES') : staff.filter((s: any) => s.role === 'DENTIST');
+    const source = allStaff.filter((s: any) => s.role === 'SALES' || s.role === 'DENTIST');
     return source.map((s: any) => ({
       id: s.id,
       name: s.name,
       role: s.role,
       appointments: visibleAppointments.filter((a: any) => (a.user?.id || a.userId) === s.id),
     }));
-  }, [staff, form.type, visibleAppointments]);
+  }, [allStaff, visibleAppointments]);
 
   const slotSlots = useMemo(() => {
-    const times = visibleAppointments
-      .map((a: any) => String(a.appointmentDate || '').slice(11, 16))
-      .filter((t: string) => /^\d{2}:\d{2}$/.test(t));
-    const pool = times.length ? times : ['09:00', '18:00'];
-    const toMin = (t: string) => {
-      const parts = t.split(':').map(Number);
-      return parts[0] * 60 + parts[1];
-    };
-    const from = toMin(pool[0]);
-    const to = toMin(pool[pool.length - 1]);
-    const slots: string[] = [];
-    for (let m = from; m <= to; m += 15) {
-      const h = Math.floor(m / 60).toString().padStart(2, '0');
-      const mm = (m % 60).toString().padStart(2, '0');
-      slots.push(`${h}:${mm}`);
+    let start = '09:00';
+    let end = '18:00';
+
+    if (workingHoursData) {
+      start = workingHoursData.startTime || '09:00';
+      end = workingHoursData.endTime || '18:00';
     }
-    return slots;
-  }, [visibleAppointments]);
+
+    return generateTimeSlots(start, end, 15);
+  }, [workingHoursData]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['appointments'] });
@@ -275,35 +320,132 @@ export const AppointmentsPage: React.FC = () => {
         {isLoading ? (
           <LoadingText />
         ) : view === 'slots' ? (
-          <Table
-            head={['Saat', ...slotColumns.map((c: any) => `${c.name} - ${ROLE_LABEL[c.role] || c.role}`)]}
-          >
-            {slotSlots.map((slot) => (
-              <tr key={slot}>
-                <td className="px-4 py-3 font-mono text-xs text-slate-500">{slot}</td>
-                {slotColumns.map((c: any) => {
-                  const appt = c.appointments.find((a: any) => String(a.appointmentDate || '').slice(11, 16) === slot);
-                  if (!appt) {
-                    return (
-                      <td key={c.id} className="px-4 py-3 border-t border-slate-100 text-slate-400">
-                        -
-                      </td>
-                    );
-                  }
-                  const tone = appt.type === 'MEETING' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200';
-                  return (
-                    <td key={c.id} className={`px-4 py-3 border-t border-slate-100 ${tone}`}>
-                      <p className="font-semibold text-slate-900">
-                        {appt.patient?.name || appt.lead?.name || '-'} {appt.patient?.surname || appt.lead?.surname || ''}
-                      </p>
-                      <p className="text-xs text-slate-600">{appt.channel || 'Bilinmiyor'}</p>
-                      <p className="text-xs text-slate-500">{APPT_TYPE_LABEL[appt.type] || appt.type}</p>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </Table>
+          <>
+            {workingHoursData && (
+              <div className="mb-3 flex gap-4 text-xs">
+                <span className="text-slate-600">
+                  Çalışma Saatleri: <strong>{workingHoursData.startTime || '09:00'} - {workingHoursData.endTime || '18:00'}</strong>
+                </span>
+                {workingHoursData.lunchStart && workingHoursData.lunchEnd && (
+                  <span className="text-slate-600">
+                    Öğle Arası: <strong>{workingHoursData.lunchStart} - {workingHoursData.lunchEnd}</strong>
+                  </span>
+                )}
+              </div>
+            )}
+            <Table
+              head={['Saat', ...slotColumns.map((c: any) => `${c.name} - ${ROLE_LABEL[c.role] || c.role}`)]}
+            >
+              {slotSlots.map((slot) => (
+                <tr key={slot}>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{slot}</td>
+                  {slotColumns.map((c: any) => {
+                    const appt = c.appointments.find((a: any) => String(a.appointmentDate || '').slice(11, 16) === slot);
+                    
+                    const handleClick = (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      if (appt) {
+                        setSelectedSlot({ slot, column: c, appt });
+                        setSlotMenuAnchor({ x: e.clientX, y: e.clientY });
+                      } else {
+                        setForm({
+                          ...emptyForm,
+                          target: 'patient',
+                          patientId: '',
+                          leadId: '',
+                          type: c.role === 'DENTIST' ? 'DENTIST' : 'MEETING',
+                          userId: c.id,
+                          dateTime: toLocalInput(new Date(`${date}T${slot}`)),
+                          notes: '',
+                        });
+                        setCreateOpen(true);
+                      }
+                    };
+
+                    if (appt) {
+                      const tone = appt.type === 'MEETING' ? 'bg-blue-50 text-blue-700 border-blue-200 cursor-pointer hover:bg-blue-100' : 'bg-emerald-50 text-emerald-700 border-emerald-200 cursor-pointer hover:bg-emerald-100';
+                      return (
+                        <td 
+                          key={c.id} 
+                          className={`px-4 py-3 border-t border-slate-100 ${tone}`}
+                          onClick={handleClick}
+                        >
+                          <p className="font-semibold text-slate-900">
+                            {appt.patient?.name || appt.lead?.name || '-'} {appt.patient?.surname || appt.lead?.surname || ''}
+                          </p>
+                          <p className="text-xs text-slate-600">{appt.channel || 'Bilinmiyor'}</p>
+                          <p className="text-xs text-slate-500">{APPT_TYPE_LABEL[appt.type] || appt.type}</p>
+                        </td>
+                      );
+                    } else {
+                      return (
+                        <td 
+                          key={c.id} 
+                          className="px-4 py-3 border-t border-slate-100 text-slate-400 cursor-pointer hover:bg-slate-50 hover:text-slate-600"
+                          onClick={handleClick}
+                        >
+                          -
+                        </td>
+                      );
+                    }
+                  })}
+                </tr>
+              ))}
+            </Table>
+            {slotMenuAnchor && selectedSlot && (
+              <div 
+                ref={slotMenuRef}
+                className="fixed z-50 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1"
+                style={{ top: slotMenuAnchor.y, left: slotMenuAnchor.x }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                  onClick={() => {
+                    setForm({
+                      ...emptyForm,
+                      target: selectedSlot.appt.patient ? 'patient' : 'lead',
+                      patientId: selectedSlot.appt.patientId || '',
+                      leadId: selectedSlot.appt.leadId || '',
+                      type: selectedSlot.appt.type,
+                      userId: selectedSlot.column.id,
+                      dateTime: toLocalInput(new Date(`${date}T${selectedSlot.slot}`)),
+                      notes: selectedSlot.appt.notes || '',
+                    });
+                    setCreateOpen(true);
+                  }}
+                >
+                  Düzenle
+                </button>
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                  onClick={() => {
+                    arriveMutation.mutate(selectedSlot.appt.id);
+                  }}
+                  disabled={arriveMutation.isPending || selectedSlot.appt.status === 'CANCELLED' || selectedSlot.appt.status === 'NO_SHOW'}
+                >
+                  Geliş Yap
+                </button>
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm text-amber-600 hover:bg-amber-50"
+                  onClick={() => {
+                    setReschedule(selectedSlot.appt);
+                    setRescheduleDate(toLocalInput(selectedSlot.appt.appointmentDate));
+                  }}
+                >
+                  Ertele
+                </button>
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                  onClick={() => {
+                    statusMutation.mutate({ id: selectedSlot.appt.id, status: 'CANCELLED' });
+                  }}
+                >
+                  İptal Et
+                </button>
+              </div>
+            )}
+          </>
         ) : visibleAppointments.length === 0 ? (
           <Empty title="Randevu bulunamadı" hint="Filtreleri seçin veya yeni randevu oluşturun." />
         ) : (
