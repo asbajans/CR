@@ -31,6 +31,6 @@ export const ROLE_LABELS: Record<string, string> = {
   ADMIN: 'Yönetici',
   DENTIST: 'Doktor',
   CALL_CENTER: 'Çağrı Merkezi',
-  SALES: 'Satışçı',
+  SALES: 'Sağlık Danışmanı',
   BANKO: 'Banko',
 };

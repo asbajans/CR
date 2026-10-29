@@ -116,20 +116,34 @@ export const AppointmentsPage: React.FC = () => {
     return { todays, pending, leadBookings };
   }, [visibleAppointments]);
 
-  const slotGroups = useMemo(() => {
-    const groups = new Map<string, any[]>();
-    for (const a of visibleAppointments) {
-      const key = a.user?.id || a.userId || 'unknown';
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(a);
+  const slotColumns = useMemo(() => {
+    const source = form.type === 'MEETING' ? staff.filter((s: any) => s.role === 'SALES') : staff.filter((s: any) => s.role === 'DENTIST');
+    return source.map((s: any) => ({
+      id: s.id,
+      name: s.name,
+      role: s.role,
+      appointments: visibleAppointments.filter((a: any) => (a.user?.id || a.userId) === s.id),
+    }));
+  }, [staff, form.type, visibleAppointments]);
+
+  const slotSlots = useMemo(() => {
+    const times = visibleAppointments
+      .map((a: any) => String(a.appointmentDate || '').slice(11, 16))
+      .filter((t: string) => /^\d{2}:\d{2}$/.test(t));
+    const pool = times.length ? times : ['09:00', '18:00'];
+    const toMin = (t: string) => {
+      const parts = t.split(':').map(Number);
+      return parts[0] * 60 + parts[1];
+    };
+    const from = toMin(pool[0]);
+    const to = toMin(pool[pool.length - 1]);
+    const slots: string[] = [];
+    for (let m = from; m <= to; m += 15) {
+      const h = Math.floor(m / 60).toString().padStart(2, '0');
+      const mm = (m % 60).toString().padStart(2, '0');
+      slots.push(`${h}:${mm}`);
     }
-    return Array.from(groups.entries())
-      .map(([key, list]) => ({
-        userId: key,
-        user: list[0].user || list[0].userId,
-        appointments: list.sort((x: any, y: any) => new Date(x.appointmentDate).getTime() - new Date(y.appointmentDate).getTime()),
-      }))
-      .filter((g) => g.appointments.length > 0);
+    return slots;
   }, [visibleAppointments]);
 
   const invalidate = () => {
@@ -188,67 +202,6 @@ export const AppointmentsPage: React.FC = () => {
     onError: (err) => alert(apiError(err)),
   });
 
-  const renderAppointmentRow = (a: any) => {
-    const person = a.patient || a.lead;
-    return (
-      <tr key={a.id} className="hover:bg-slate-50">
-        <td className="px-4 py-3 font-mono text-xs text-slate-500">{a.randevuNo}</td>
-        <td className="px-4 py-3">
-          <p className="font-semibold text-slate-900">
-            {person?.name} {person?.surname || ''}
-          </p>
-          <p className="text-xs text-slate-400">
-            {a.patient ? a.patient.hastaNo : 'Lead hasta kayit kaydı yok'} {person?.phone}
-          </p>
-        </td>
-        <td className="px-4 py-3 whitespace-nowrap">{dateTime(a.appointmentDate)}</td>
-        <td className="px-4 py-3">
-          <Badge tone={statusTone(a.type)}>{APPT_TYPE_LABEL[a.type]}</Badge>
-        </td>
-        <td className="px-4 py-3">
-          <p className="text-slate-700">{a.channel || 'Bilinmiyor'}</p>
-          <p className="text-xs text-slate-400">{a.campaign?.name || '-'}</p>
-        </td>
-        <td className="px-4 py-3 text-slate-600">{a.user?.name || '-'}</td>
-        <td className="px-4 py-3">
-          <p className="text-slate-700">{a.createdBy?.name || '-'}</p>
-          <p className="text-xs text-slate-400">{a.createdBy ? ROLE_LABEL[a.createdBy.role] : ''}</p>
-        </td>
-        <td className="px-4 py-3">
-          <Select value={a.status} onChange={(e) => statusMutation.mutate({ id: a.id, status: e.target.value })} className="text-xs py-1 max-w-[140px]">
-            {Object.entries(APPT_STATUS_LABEL).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
-          </Select>
-        </td>
-        <td className="px-4 py-3">
-          {a.visit ? (
-            <div>
-              <p className="font-mono text-xs text-slate-600">{a.visit.protokolNo}</p>
-              <Badge tone={statusTone(a.visit.status)}>{VISIT_STATUS_LABEL[a.visit.status]}</Badge>
-            </div>
-          ) : a.status === 'CANCELLED' || a.status === 'NO_SHOW' ? (
-            <span className="text-xs text-slate-400">-</span>
-          ) : canArrive ? (
-            <Button size="sm" variant="success" onClick={() => arriveMutation.mutate(a.id)} disabled={arriveMutation.isPending}>
-              Geliş Al
-            </Button>
-          ) : (
-            <span className="text-xs text-slate-400">Bekliyor</span>
-          )}
-        </td>
-        <td className="px-4 py-3 text-right">
-          {canReschedule && (
-            <Button size="sm" variant="secondary" onClick={() => { setReschedule(a); setRescheduleDate(toLocalInput(a.appointmentDate)); }}>
-              Ertele
-            </Button>
-          )}
-        </td>
-      </tr>
-    );
-  };
 
   return (
     <div className="space-y-6">
@@ -323,26 +276,32 @@ export const AppointmentsPage: React.FC = () => {
           <LoadingText />
         ) : view === 'slots' ? (
           <Table
-            head={[
-              'Saat',
-              'Personel',
-              'Hasta / Lead',
-              'Tip',
-              'Durum',
-              'Geliş',
-              'İşlem',
-            ]}
+            head={['Saat', ...slotColumns.map((c: any) => `${c.name} - ${ROLE_LABEL[c.role] || c.role}`)]}
           >
-            {slotGroups.map((g) => (
-              <React.Fragment key={g.userId}>
-                <tr className="bg-slate-100">
-                  <td colSpan={7} className="px-4 py-2 font-semibold text-slate-700">
-                    {g.user?.name || 'Personel'}
-                    {g.user?.role ? ` - ${ROLE_LABEL[g.user?.role]}` : ''}
-                  </td>
-                </tr>
-                {g.appointments.map((a) => renderAppointmentRow(a))}
-              </React.Fragment>
+            {slotSlots.map((slot) => (
+              <tr key={slot}>
+                <td className="px-4 py-3 font-mono text-xs text-slate-500">{slot}</td>
+                {slotColumns.map((c: any) => {
+                  const appt = c.appointments.find((a: any) => String(a.appointmentDate || '').slice(11, 16) === slot);
+                  if (!appt) {
+                    return (
+                      <td key={c.id} className="px-4 py-3 border-t border-slate-100 text-slate-400">
+                        -
+                      </td>
+                    );
+                  }
+                  const tone = appt.type === 'MEETING' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                  return (
+                    <td key={c.id} className={`px-4 py-3 border-t border-slate-100 ${tone}`}>
+                      <p className="font-semibold text-slate-900">
+                        {appt.patient?.name || appt.lead?.name || '-'} {appt.patient?.surname || appt.lead?.surname || ''}
+                      </p>
+                      <p className="text-xs text-slate-600">{appt.channel || 'Bilinmiyor'}</p>
+                      <p className="text-xs text-slate-500">{APPT_TYPE_LABEL[appt.type] || appt.type}</p>
+                    </td>
+                  );
+                })}
+              </tr>
             ))}
           </Table>
         ) : visibleAppointments.length === 0 ? (
