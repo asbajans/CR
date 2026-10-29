@@ -321,8 +321,6 @@ export const AppointmentsPage: React.FC = () => {
       <Card>
         {isLoading ? (
           <LoadingText />
-        ) : visibleAppointments.length === 0 ? (
-          <Empty title="Randevu bulunamadı" hint="Filtreleri değiştirin veya yeni randevu oluşturun." />
         ) : view === 'slots' ? (
           <Table
             head={[
@@ -347,6 +345,8 @@ export const AppointmentsPage: React.FC = () => {
               </React.Fragment>
             ))}
           </Table>
+        ) : visibleAppointments.length === 0 ? (
+          <Empty title="Randevu bulunamadı" hint="Filtreleri seçin veya yeni randevu oluşturun." />
         ) : (
           <Table
             head={[
