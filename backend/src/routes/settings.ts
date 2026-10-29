@@ -47,6 +47,13 @@ router.patch('/expense-categories/:id', asyncHandler(async (req: Request, res: R
   res.json({ success: true, data: category });
 }));
 
+router.delete('/expense-categories/:id', asyncHandler(async (req: Request, res: Response) => {
+  await prisma.expenseCategory.delete({
+    where: { id: req.params.id },
+  });
+  res.json({ success: true, data: { deleted: true } });
+}));
+
 // Expenses
 router.get('/expenses', asyncHandler(async (req: Request, res: Response) => {
   const where: Record<string, unknown> = {};
@@ -101,6 +108,13 @@ router.patch('/expenses/:id', asyncHandler(async (req: Request, res: Response) =
   res.json({ success: true, data: expense });
 }));
 
+router.delete('/expenses/:id', asyncHandler(async (req: Request, res: Response) => {
+  await prisma.expense.delete({
+    where: { id: req.params.id },
+  });
+  res.json({ success: true, data: { deleted: true } });
+}));
+
 // Commission Rates
 router.get('/commission-rates', asyncHandler(async (_req: Request, res: Response) => {
   const rates = await prisma.commissionRate.findMany({
@@ -146,6 +160,13 @@ router.patch('/commission-rates/:id', asyncHandler(async (req: Request, res: Res
     },
   });
   res.json({ success: true, data: rate });
+}));
+
+router.delete('/commission-rates/:id', asyncHandler(async (req: Request, res: Response) => {
+  await prisma.commissionRate.delete({
+    where: { id: req.params.id },
+  });
+  res.json({ success: true, data: { deleted: true } });
 }));
 
 // Commission Management
@@ -244,6 +265,13 @@ router.patch('/commissions/:id', asyncHandler(async (req: Request, res: Response
     },
   });
   res.json({ success: true, data: commission });
+}));
+
+router.delete('/commissions/:id', asyncHandler(async (req: Request, res: Response) => {
+  await prisma.commission.delete({
+    where: { id: req.params.id },
+  });
+  res.json({ success: true, data: { deleted: true } });
 }));
 
 export default router;
