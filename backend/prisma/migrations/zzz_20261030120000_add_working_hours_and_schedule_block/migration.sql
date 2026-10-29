@@ -6,8 +6,8 @@ ALTER TABLE "Appointment" ADD COLUMN "endDate" TIMESTAMP(3);
 
 -- CreateTable
 CREATE TABLE "WorkingHours" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "userId" UUID NOT NULL,
     "date" TIMESTAMP(3) NOT NULL,
     "start" TEXT NOT NULL,
     "end" TEXT NOT NULL,
@@ -21,8 +21,8 @@ CREATE TABLE "WorkingHours" (
 
 -- CreateTable
 CREATE TABLE "ScheduleBlock" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "userId" UUID NOT NULL,
     "date" TIMESTAMP(3) NOT NULL,
     "startTime" TEXT NOT NULL,
     "endTime" TEXT NOT NULL,
