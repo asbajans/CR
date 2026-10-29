@@ -147,7 +147,24 @@ jobs:
 
       - name: Test frontend container
         run: |
-          docker run -d --name frontend-test -p 3000:80 crdent-frontend:test
+          # Create a simple nginx config for testing (no backend proxy needed)
+          cat > /tmp/nginx-test.conf << 'EOF'
+          server {
+              listen 80;
+              server_name _;
+
+              location / {
+                  root /usr/share/nginx/html;
+                  try_files $uri $uri/ /index.html;
+              }
+          }
+          EOF
+
+          docker run -d --name frontend-test \
+            -p 3000:80 \
+            -v /tmp/nginx-test.conf:/etc/nginx/conf.d/default.conf:ro \
+            crdent-frontend:test
+
           sleep 3
           echo "=== Container status ==="
           docker ps -a --filter name=frontend-test
