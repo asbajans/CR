@@ -14,6 +14,7 @@ export const ROUTES = {
   USERS: '/users',
   VISITS: '/visits',
   REPORTS: '/reports',
+  SETTINGS: '/settings',
 } as const;
 
 export const ROLE_HOME: Record<string, string> = {

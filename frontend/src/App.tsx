@@ -19,6 +19,7 @@ import { InvoicesPage } from './pages/records/InvoicesPage';
 import { UsersPage } from './pages/records/UsersPage';
 import { VisitsPage } from './pages/records/VisitsPage';
 import { ReportsPage } from './pages/records/ReportsPage';
+import { SettingsPage } from './pages/settings/SettingsPage';
 
 const App = () => {
   const { user, token, setUser } = useAppStore();
@@ -64,11 +65,6 @@ const App = () => {
               <Route path={ROUTES.APPOINTMENTS} element={<AppointmentsPage />} />
               <Route path={ROUTES.LEADS} element={<LeadsPage />} />
               <Route path={ROUTES.TREATMENT} element={<TreatmentPage />} />
-              <Route path={ROUTES.VISITS} element={<VisitsPage />} />
-              <Route
-                path={ROUTES.REPORTS}
-                element={user.role === 'ADMIN' ? <ReportsPage /> : <Navigate to="/" replace />}
-              />
               <Route
                 path={ROUTES.INVOICES}
                 element={['ADMIN', 'BANKO'].includes(user.role) ? <InvoicesPage /> : <Navigate to="/" replace />}
@@ -76,6 +72,18 @@ const App = () => {
               <Route
                 path={ROUTES.USERS}
                 element={user.role === 'ADMIN' ? <UsersPage /> : <Navigate to="/" replace />}
+              />
+              <Route
+                path={ROUTES.VISITS}
+                element={['ADMIN', 'DENTIST', 'CALL_CENTER', 'SALES', 'BANKO'].includes(user.role) ? <VisitsPage /> : <Navigate to="/" replace />}
+              />
+              <Route
+                path={ROUTES.REPORTS}
+                element={user.role === 'ADMIN' ? <ReportsPage /> : <Navigate to="/" replace />}
+              />
+              <Route
+                path={ROUTES.SETTINGS}
+                element={user.role === 'ADMIN' ? <SettingsPage /> : <Navigate to="/" replace />}
               />
               <Route path="/login" element={<Navigate to={home} replace />} />
               <Route path="*" element={<Navigate to={home} replace />} />

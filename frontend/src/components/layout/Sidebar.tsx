@@ -16,6 +16,7 @@ const common: Record<string, NavItem[]> = {
     { label: 'Tedavi Planları', path: ROUTES.TREATMENT, icon: '📋' },
     { label: 'Faturalar', path: ROUTES.INVOICES, icon: '💳' },
     { label: 'Raporlar', path: ROUTES.REPORTS, icon: '📈' },
+    { label: 'Ayarlar', path: ROUTES.SETTINGS, icon: '⚙️' },
   ],
   CALL_CENTER: [
     { label: 'Panelim', path: ROUTES.CALL_CENTER, icon: '🏠' },
