@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAppStore } from './store/appStore';
 import { ROUTES, ROLE_DASHBOARD } from './lib/constants';
 import { Sidebar } from './components/layout/Sidebar';
@@ -14,7 +14,6 @@ import { Admin } from './pages/admin/Admin';
 
 const App = () => {
   const { user, token, setUser } = useAppStore();
-  const location = useLocation();
 
   const isAuthenticated = !!token && !!user;
 
