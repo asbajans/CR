@@ -17,6 +17,8 @@ import { LeadsPage } from './pages/records/LeadsPage';
 import { TreatmentPage } from './pages/records/TreatmentPage';
 import { InvoicesPage } from './pages/records/InvoicesPage';
 import { UsersPage } from './pages/records/UsersPage';
+import { VisitsPage } from './pages/records/VisitsPage';
+import { ReportsPage } from './pages/records/ReportsPage';
 
 const App = () => {
   const { user, token, setUser } = useAppStore();
@@ -62,6 +64,11 @@ const App = () => {
               <Route path={ROUTES.APPOINTMENTS} element={<AppointmentsPage />} />
               <Route path={ROUTES.LEADS} element={<LeadsPage />} />
               <Route path={ROUTES.TREATMENT} element={<TreatmentPage />} />
+              <Route path={ROUTES.VISITS} element={<VisitsPage />} />
+              <Route
+                path={ROUTES.REPORTS}
+                element={user.role === 'ADMIN' ? <ReportsPage /> : <Navigate to="/" replace />}
+              />
               <Route
                 path={ROUTES.INVOICES}
                 element={['ADMIN', 'BANKO'].includes(user.role) ? <InvoicesPage /> : <Navigate to="/" replace />}

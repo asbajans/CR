@@ -71,11 +71,27 @@ router.get(
       where: { id: req.params.id },
       include: {
         appointments: {
-          include: { user: { select: { id: true, name: true, role: true } } },
+          include: {
+            user: { select: { id: true, name: true, role: true } },
+            createdBy: { select: { id: true, name: true, role: true } },
+            visit: { select: { id: true, protokolNo: true, status: true } },
+          },
           orderBy: { appointmentDate: 'desc' },
         },
+        visits: {
+          include: {
+            appointment: { select: { id: true, randevuNo: true, type: true, appointmentDate: true } },
+            campaign: { select: { id: true, name: true } },
+          },
+          orderBy: { visitDate: 'desc' },
+        },
         treatmentPlans: {
-          include: { items: true, invoices: true },
+          include: {
+            items: true,
+            invoices: true,
+            createdBy: { select: { id: true, name: true, role: true } },
+            campaign: { select: { id: true, name: true } },
+          },
           orderBy: { createdAt: 'desc' },
         },
         medicalRecord: role === 'DENTIST' || role === 'ADMIN',

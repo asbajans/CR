@@ -7,8 +7,10 @@ import {
   Prisma,
   TreatmentPlanStatus,
   UserRole,
+  VisitStatus,
 } from '@prisma/client';
 import { prisma } from './prisma';
+import { nextProtokolNo, nextRandevuNo } from './serial';
 
 const DEMO_PASSWORD = '123456';
 
@@ -22,6 +24,12 @@ const istanbulDate = (offsetDays: number, hour: number, minute = 0) => {
 
 const currentYear = () =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(new Date()).slice(0, 4);
+
+const todayBounds = () => {
+  const dateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(new Date());
+  const start = new Date(`${dateStr}T00:00:00+03:00`);
+  return { start, end: new Date(start.getTime() + 86400000) };
+};
 
 const usersSeed = [
   { name: 'Ayşe Yılmaz', email: 'admin@crdent.com', role: UserRole.ADMIN },
@@ -65,11 +73,29 @@ const campaignSeed = [
   { name: 'Referans Programı', channel: 'Referans', budget: 3000 },
 ];
 
+const patientChannelSeed: { channel: string; campaign: number | null }[] = [
+  { channel: 'Instagram', campaign: 0 },
+  { channel: 'Google', campaign: 1 },
+  { channel: 'Referans', campaign: 3 },
+  { channel: 'Instagram', campaign: 0 },
+  { channel: 'Google', campaign: 1 },
+  { channel: 'WhatsApp', campaign: 2 },
+  { channel: 'Instagram', campaign: 0 },
+  { channel: 'Google', campaign: 1 },
+  { channel: 'Referans', campaign: 3 },
+  { channel: 'Instagram', campaign: 0 },
+  { channel: 'Facebook', campaign: null },
+  { channel: 'Google', campaign: 1 },
+  { channel: 'Web', campaign: null },
+  { channel: 'Instagram', campaign: 0 },
+];
+
 type PlanSeed = {
   patient: number;
   status: TreatmentPlanStatus;
   discount: number;
-  paymentPlan?: Record<string, unknown>;  items: { toothNo?: string; treatment: string; price: number; quantity: number; stepOrder: number }[];
+  paymentPlan?: Record<string, unknown>;
+  items: { toothNo?: string; treatment: string; price: number; quantity: number; stepOrder: number }[];
 };
 
 const planSeed: PlanSeed[] = [
@@ -106,9 +132,7 @@ const planSeed: PlanSeed[] = [
     patient: 3,
     status: TreatmentPlanStatus.IN_PROGRESS,
     discount: 0,
-    items: [
-      { treatment: 'Zirkonyum Kaplama', price: 4500, quantity: 4, stepOrder: 1 },
-    ],
+    items: [{ treatment: 'Zirkonyum Kaplama', price: 4500, quantity: 4, stepOrder: 1 }],
   },
   {
     patient: 4,
@@ -179,17 +203,226 @@ async function seedUsers() {
   return map;
 }
 
+async function leadSourceForPatient(patientId: string | null) {
+  if (!patientId) return null;
+  return prisma.lead.findFirst({
+    where: { patientId },
+    orderBy: { createdAt: 'asc' },
+    select: { source: true, campaignId: true },
+  });
+}
+
+async function createVisitForAppointment(appointment: {
+  id: string;
+  patientId: string | null;
+  leadId: string | null;
+  channel: string | null;
+  campaignId: string | null;
+  appointmentDate: Date;
+}, status: VisitStatus) {
+  return prisma.patientVisit.create({
+    data: {
+      protokolNo: await nextProtokolNo(),
+      appointmentId: appointment.id,
+      patientId: appointment.patientId,
+      leadId: appointment.leadId,
+      channel: appointment.channel ?? 'Bilinmiyor',
+      campaignId: appointment.campaignId,
+      status,
+      visitDate: status === VisitStatus.COMPLETED ? appointment.appointmentDate : new Date(),
+    },
+  });
+}
+
+async function augmentExistingData(userIds: Record<string, string>) {
+  const callCenterId = userIds['cagri@crdent.com'];
+  const salesId = userIds['satis@crdent.com'];
+  const dentist1 = userIds['doktor@crdent.com'];
+  const dentist2 = userIds['doktor2@crdent.com'];
+
+  const appointments = await prisma.appointment.findMany({
+    select: {
+      id: true,
+      patientId: true,
+      leadId: true,
+      channel: true,
+      campaignId: true,
+      createdById: true,
+    },
+  });
+
+  for (const appointment of appointments) {
+    const lead = appointment.leadId
+      ? await prisma.lead.findUnique({
+          where: { id: appointment.leadId },
+          select: { source: true, campaignId: true },
+        })
+      : await leadSourceForPatient(appointment.patientId);
+    const channel = appointment.channel ?? lead?.source ?? 'Bilinmiyor';
+    const campaignId = appointment.campaignId ?? lead?.campaignId ?? null;
+    const createdById = appointment.createdById ?? callCenterId;
+    if (
+      channel !== appointment.channel ||
+      campaignId !== appointment.campaignId ||
+      createdById !== appointment.createdById
+    ) {
+      await prisma.appointment.update({
+        where: { id: appointment.id },
+        data: { channel, campaignId, createdById },
+      });
+    }
+  }
+
+  const plans = await prisma.treatmentPlan.findMany({
+    select: { id: true, patientId: true, channel: true, campaignId: true, createdById: true },
+  });
+  for (const plan of plans) {
+    const lead = await leadSourceForPatient(plan.patientId);
+    const channel = plan.channel ?? lead?.source ?? 'Bilinmiyor';
+    const campaignId = plan.campaignId ?? lead?.campaignId ?? null;
+    const createdById = plan.createdById ?? salesId;
+    if (
+      channel !== plan.channel ||
+      campaignId !== plan.campaignId ||
+      createdById !== plan.createdById
+    ) {
+      await prisma.treatmentPlan.update({
+        where: { id: plan.id },
+        data: { channel, campaignId, createdById },
+      });
+    }
+  }
+
+  const examinationCount = await prisma.appointment.count({ where: { type: 'EXAMINATION' } });
+  if (examinationCount === 0) {
+    const patients = await prisma.patient.findMany({
+      orderBy: { hastaNo: 'asc' },
+      take: 10,
+      select: { id: true },
+    });
+    for (let i = 0; i < patients.length; i++) {
+      const patientId = patients[i].id;
+      const lead = await leadSourceForPatient(patientId);
+      const appointmentDate = istanbulDate(-(17 - (i % 6)), 14, 0);
+      const appointment = await prisma.appointment.create({
+        data: {
+          randevuNo: await nextRandevuNo(),
+          patientId,
+          userId: i % 2 === 0 ? dentist1 : dentist2,
+          createdById: callCenterId,
+          type: AppointmentType.EXAMINATION,
+          status: AppointmentStatus.COMPLETED,
+          channel: lead?.source ?? 'Bilinmiyor',
+          campaignId: lead?.campaignId ?? null,
+          appointmentDate,
+          notes: 'Muayene ve tedavi değerlendirmesi',
+        },
+      });
+      await createVisitForAppointment(
+        {
+          id: appointment.id,
+          patientId: appointment.patientId,
+          leadId: appointment.leadId,
+          channel: appointment.channel,
+          campaignId: appointment.campaignId,
+          appointmentDate: appointment.appointmentDate,
+        },
+        VisitStatus.COMPLETED
+      );
+    }
+    console.log(`[seed] ${patients.length} muayene randevusu eklendi`);
+  }
+
+  const leadAppointmentCount = await prisma.appointment.count({ where: { leadId: { not: null } } });
+  if (leadAppointmentCount === 0) {
+    const leads = await prisma.lead.findMany({
+      where: { patientId: null },
+      orderBy: { createdAt: 'asc' },
+      take: 5,
+    });
+    for (let i = 0; i < leads.length; i++) {
+      const lead = leads[i];
+      await prisma.appointment.create({
+        data: {
+          randevuNo: await nextRandevuNo(),
+          leadId: lead.id,
+          userId: salesId,
+          createdById: callCenterId,
+          type: AppointmentType.MEETING,
+          status: i % 2 === 0 ? AppointmentStatus.CONFIRMED : AppointmentStatus.PENDING,
+          channel: lead.source,
+          campaignId: lead.campaignId,
+          appointmentDate: istanbulDate(1 + Math.floor(i / 2), 10 + (i % 5), 30),
+          notes: 'Hasta kaydı olmadan lead görüşme randevusu',
+        },
+      });
+      if (lead.status === 'NEW' || lead.status === 'CONTACTED') {
+        await prisma.lead.update({
+          where: { id: lead.id },
+          data: { status: 'APPOINTMENT_BOOKED' },
+        });
+      }
+    }
+    console.log(`[seed] ${leads.length} lead randevusu eklendi`);
+  }
+
+  const completedWithoutVisit = await prisma.appointment.findMany({
+    where: { status: 'COMPLETED', visit: null },
+    orderBy: { appointmentDate: 'asc' },
+    select: {
+      id: true,
+      patientId: true,
+      leadId: true,
+      channel: true,
+      campaignId: true,
+      appointmentDate: true,
+    },
+  });
+  for (const appointment of completedWithoutVisit) {
+    await createVisitForAppointment(appointment, VisitStatus.COMPLETED);
+  }
+  if (completedWithoutVisit.length > 0) {
+    console.log(`[seed] ${completedWithoutVisit.length} geliş (protokol) kaydı eklendi`);
+  }
+
+  const today = todayBounds();
+  const todaysUnvisited = await prisma.appointment.findMany({
+    where: {
+      status: 'CONFIRMED',
+      visit: null,
+      appointmentDate: { gte: today.start, lt: today.end },
+    },
+    orderBy: { appointmentDate: 'asc' },
+    take: 2,
+    select: {
+      id: true,
+      patientId: true,
+      leadId: true,
+      channel: true,
+      campaignId: true,
+      appointmentDate: true,
+    },
+  });
+  for (const appointment of todaysUnvisited) {
+    await createVisitForAppointment(appointment, VisitStatus.WAITING);
+  }
+
+  console.log('[seed] mevcut veri v2 alanlarıyla zenginleştirildi');
+}
+
 export async function seedDatabase() {
   const userIds = await seedUsers();
 
   const patientCount = await prisma.patient.count();
   if (patientCount > 0) {
-    console.log(`[seed] veritabanında ${patientCount} hasta var, demo veri eklenmedi`);
+    console.log(`[seed] veritabanında ${patientCount} hasta var, v2 zenginleştirme çalıştırılıyor`);
+    await augmentExistingData(userIds);
     return;
   }
 
   const year = currentYear();
   const salesId = userIds['satis@crdent.com'];
+  const callCenterId = userIds['cagri@crdent.com'];
   const dentist1 = userIds['doktor@crdent.com'];
   const dentist2 = userIds['doktor2@crdent.com'];
 
@@ -234,13 +467,18 @@ export async function seedDatabase() {
   const planIds: string[] = [];
   for (const plan of planSeed) {
     const total = plan.items.reduce((sum, item) => sum + item.price * item.quantity, 0) - plan.discount;
+    const channelInfo = patientChannelSeed[plan.patient];
     const created = await prisma.treatmentPlan.create({
       data: {
         patientId: patientIds[plan.patient],
+        createdById: salesId,
         status: plan.status,
         totalPrice: total,
         discount: plan.discount,
         paymentPlan: (plan.paymentPlan as Prisma.InputJsonValue | undefined) ?? undefined,
+        channel: channelInfo.channel,
+        campaignId:
+          channelInfo.campaign === null ? null : campaignIds[channelInfo.campaign],
         approvedAt: plan.status === TreatmentPlanStatus.DRAFT ? null : istanbulDate(-5, 12),
         items: {
           create: plan.items.map((item) => ({
@@ -271,45 +509,75 @@ export async function seedDatabase() {
   }
   console.log(`[seed] ${invoiceSeed.length} fatura oluşturuldu`);
 
+  const leadIds: string[] = [];
+  for (const lead of leadSeed) {
+    const created = await prisma.lead.create({
+      data: {
+        name: lead.name,
+        phone: lead.phone,
+        source: lead.source,
+        status: lead.status,
+        campaignId: lead.campaign === null ? null : campaignIds[lead.campaign],
+        patientId: lead.patient === null ? null : patientIds[lead.patient],
+      },
+    });
+    leadIds.push(created.id);
+  }
+  console.log(`[seed] ${leadSeed.length} lead oluşturuldu`);
+
   type ApptSeed = {
-    patient: number;
+    patient?: number;
+    lead?: number;
     user: string;
     type: AppointmentType;
     status: AppointmentStatus;
     date: Date;
     notes: string;
+    channel?: string;
+    campaign?: number | null;
   };
   const apptSeeds: ApptSeed[] = [];
 
   for (let i = 0; i < patientIds.length; i++) {
-    if (i < 10) {
-      apptSeeds.push({
-        patient: i,
-        user: salesId,
-        type: AppointmentType.CONSULTATION,
-        status: AppointmentStatus.COMPLETED,
-        date: istanbulDate(-(24 - i), 10 + (i % 6), 0),
-        notes: 'İlk muayene ve tedavi planı görüşmesi',
-      });
-    } else if (i < 12) {
-      apptSeeds.push({
-        patient: i,
-        user: salesId,
-        type: AppointmentType.CONSULTATION,
-        status: AppointmentStatus.CONFIRMED,
-        date: istanbulDate(0, 10 + (i - 10) * 2, 30),
-        notes: 'Ücretsiz ön muayene',
-      });
-    } else {
-      apptSeeds.push({
-        patient: i,
-        user: salesId,
-        type: AppointmentType.CONSULTATION,
-        status: AppointmentStatus.PENDING,
-        date: istanbulDate(1, 14 + (i - 12) * 2, 0),
-        notes: 'Ücretsiz ön muayene',
-      });
-    }
+    apptSeeds.push({
+      patient: i,
+      user: salesId,
+      type: AppointmentType.MEETING,
+      status:
+        i < 10
+          ? AppointmentStatus.COMPLETED
+          : i < 12
+            ? AppointmentStatus.CONFIRMED
+            : AppointmentStatus.PENDING,
+      date:
+        i < 10
+          ? istanbulDate(-(24 - i), 10 + (i % 6), 0)
+          : i < 12
+            ? istanbulDate(0, 10 + (i - 10) * 2, 30)
+            : istanbulDate(1, 14 + (i - 12) * 2, 0),
+      notes: 'Ücretsiz ön görüşme ve tedavi planı sunumu',
+    });
+  }
+
+  for (let i = 0; i < 10; i++) {
+    apptSeeds.push({
+      patient: i,
+      user: i % 2 === 0 ? dentist1 : dentist2,
+      type: AppointmentType.EXAMINATION,
+      status: AppointmentStatus.COMPLETED,
+      date: istanbulDate(-(17 - (i % 6)), 14, 0),
+      notes: 'Muayene ve tedavi değerlendirmesi',
+    });
+  }
+  for (let i = 10; i < 14; i++) {
+    apptSeeds.push({
+      patient: i,
+      user: i % 2 === 0 ? dentist1 : dentist2,
+      type: AppointmentType.EXAMINATION,
+      status: i < 12 ? AppointmentStatus.CONFIRMED : AppointmentStatus.PENDING,
+      date: i < 12 ? istanbulDate(0, 14 + (i - 10), 0) : istanbulDate(1, 11 + (i - 12) * 2, 30),
+      notes: 'İlk muayene',
+    });
   }
 
   const treatmentPatients = [0, 1, 2, 3, 4, 5];
@@ -333,35 +601,89 @@ export async function seedDatabase() {
     });
   }
 
+  for (let i = 5; i < leadSeed.length; i++) {
+    const lead = leadSeed[i];
+    apptSeeds.push({
+      lead: i,
+      user: salesId,
+      type: AppointmentType.MEETING,
+      status: i % 2 === 0 ? AppointmentStatus.CONFIRMED : AppointmentStatus.PENDING,
+      date: istanbulDate(1 + Math.floor((i - 5) / 2), 10 + ((i - 5) % 5), 30),
+      notes: 'Hasta kaydı olmadan lead görüşme randevusu',
+      channel: lead.source,
+      campaign: lead.campaign,
+    });
+  }
+
+  const createdAppointments: {
+    id: string;
+    patientId: string | null;
+    leadId: string | null;
+    channel: string | null;
+    campaignId: string | null;
+    appointmentDate: Date;
+    status: AppointmentStatus;
+  }[] = [];
+
   for (let i = 0; i < apptSeeds.length; i++) {
-    const a = apptSeeds[i];
-    await prisma.appointment.create({
+    const seed = apptSeeds[i];
+    const channelInfo =
+      seed.channel !== undefined
+        ? { channel: seed.channel, campaign: seed.campaign ?? null }
+        : seed.patient !== undefined
+          ? patientChannelSeed[seed.patient]
+          : { channel: 'Bilinmiyor', campaign: null };
+
+    const appointment = await prisma.appointment.create({
       data: {
         randevuNo: `R-${year}-${String(i + 1).padStart(5, '0')}`,
-        patientId: patientIds[a.patient],
-        userId: a.user,
-        type: a.type,
-        status: a.status,
-        appointmentDate: a.date,
-        notes: a.notes,
+        patientId: seed.patient !== undefined ? patientIds[seed.patient] : null,
+        leadId: seed.lead !== undefined ? leadIds[seed.lead] : null,
+        userId: seed.user,
+        createdById: callCenterId,
+        type: seed.type,
+        status: seed.status,
+        channel: channelInfo.channel,
+        campaignId: channelInfo.campaign === null ? null : campaignIds[channelInfo.campaign],
+        appointmentDate: seed.date,
+        notes: seed.notes,
+      },
+      select: {
+        id: true,
+        patientId: true,
+        leadId: true,
+        channel: true,
+        campaignId: true,
+        appointmentDate: true,
+        status: true,
       },
     });
+    createdAppointments.push(appointment);
   }
-  console.log(`[seed] ${apptSeeds.length} randevu oluşturuldu`);
+  console.log(`[seed] ${createdAppointments.length} randevu oluşturuldu`);
 
-  for (const lead of leadSeed) {
-    await prisma.lead.create({
-      data: {
-        name: lead.name,
-        phone: lead.phone,
-        source: lead.source,
-        status: lead.status,
-        campaignId: lead.campaign === null ? null : campaignIds[lead.campaign],
-        patientId: lead.patient === null ? null : patientIds[lead.patient],
-      },
-    });
+  let visitCount = 0;
+  for (const appointment of createdAppointments) {
+    if (appointment.status === AppointmentStatus.COMPLETED) {
+      await createVisitForAppointment(appointment, VisitStatus.COMPLETED);
+      visitCount++;
+    }
   }
-  console.log(`[seed] ${leadSeed.length} lead oluşturuldu`);
+
+  const today = todayBounds();
+  const todaysVisits = createdAppointments
+    .filter(
+      (appointment) =>
+        appointment.status === AppointmentStatus.CONFIRMED &&
+        appointment.appointmentDate >= today.start &&
+        appointment.appointmentDate < today.end
+    )
+    .slice(0, 2);
+  for (const appointment of todaysVisits) {
+    await createVisitForAppointment(appointment, VisitStatus.WAITING);
+    visitCount++;
+  }
+  console.log(`[seed] ${visitCount} geliş (protokol) kaydı oluşturuldu`);
 
   console.log('[seed] demo veri yükleme tamamlandı');
 }

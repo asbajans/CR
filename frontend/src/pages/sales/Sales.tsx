@@ -15,9 +15,9 @@ import {
 
 export const Sales: React.FC = () => {
   const { data: consultations = [], isLoading: apptLoading } = useQuery({
-    queryKey: ['appointments', { type: 'CONSULTATION', scope: 'upcoming' }],
+    queryKey: ['appointments', { type: 'MEETING', scope: 'upcoming' }],
     queryFn: async () =>
-      (await api.get('/appointments', { params: { type: 'CONSULTATION', scope: 'upcoming' } })).data.data as any[],
+      (await api.get('/appointments', { params: { type: 'MEETING', scope: 'upcoming' } })).data.data as any[],
   });
 
   const { data: plans = [], isLoading: plansLoading } = useQuery({
@@ -37,11 +37,11 @@ export const Sales: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Satışçı Paneli"
-        subtitle="Ön muayene görüşmeleri, tedavi planı hazırlığı ve lead takibi"
+        subtitle="Görüşme randevuları, tedavi planı hazırlığı ve lead takibi"
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard label="Yaklaşan Ön Muayene" value={consultations.length} tone="violet" />
+        <StatCard label="Yaklaşan Görüşme" value={consultations.length} tone="violet" />
         <StatCard label="Taslak Tedavi Planı" value={draftPlans.length} tone="amber" />
         <StatCard label="Aktif Lead" value={activeLeads.length} />
       </div>
@@ -51,7 +51,10 @@ export const Sales: React.FC = () => {
           + Tedavi Planı Çıkart
         </Link>
         <Link to="/appointments" className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium hover:border-blue-400">
-          Ön Muayene Randevuları
+          Görüşme Randevuları
+        </Link>
+        <Link to="/visits" className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium hover:border-blue-400">
+          Geliş Kayıtları
         </Link>
         <Link to="/leads" className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium hover:border-blue-400">
           Lead Yönetimi
@@ -60,23 +63,24 @@ export const Sales: React.FC = () => {
 
       <Card>
         <div className="px-5 py-4 border-b border-slate-100">
-          <h2 className="font-semibold text-slate-800">Yaklaşan Ön Muayeneler</h2>
+          <h2 className="font-semibold text-slate-800">Yaklaşan Görüşmeler</h2>
         </div>
         {apptLoading ? (
           <LoadingText />
         ) : consultations.length === 0 ? (
-          <Empty title="Yaklaşan ön muayene yok" />
+          <Empty title="Yaklaşan görüşme yok" />
         ) : (
-          <Table head={['Hasta', 'Tarih', 'Tür', 'Durum', 'Personel']}>
+          <Table head={['Kişi', 'Tarih', 'Tür', 'Kanal', 'Durum', 'Personel']}>
             {consultations.map((a: any) => (
               <tr key={a.id}>
                 <td className="px-4 py-3 font-medium">
-                  {a.patient?.name} {a.patient?.surname}
+                  {a.patient ? `${a.patient.name} ${a.patient.surname}` : `Lead: ${a.lead?.name || '-'}`}
                 </td>
                 <td className="px-4 py-3">{dateTime(a.appointmentDate)}</td>
                 <td className="px-4 py-3">
                   <Badge tone={statusTone(a.type)}>{APPT_TYPE_LABEL[a.type]}</Badge>
                 </td>
+                <td className="px-4 py-3 text-slate-600">{a.channel || 'Bilinmiyor'}</td>
                 <td className="px-4 py-3">
                   <Badge tone={statusTone(a.status)}>{APPT_STATUS_LABEL[a.status]}</Badge>
                 </td>

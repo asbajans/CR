@@ -39,9 +39,11 @@ export const Dashboard: React.FC = () => {
   const quickLinks = [
     { label: 'Hastalar', path: '/patients', roles: ['ADMIN', 'CALL_CENTER', 'SALES', 'DENTIST', 'BANKO'] },
     { label: 'Randevular', path: '/appointments', roles: ['ADMIN', 'CALL_CENTER', 'SALES', 'DENTIST', 'BANKO'] },
+    { label: 'Gelişler', path: '/visits', roles: ['ADMIN', 'CALL_CENTER', 'SALES', 'DENTIST', 'BANKO'] },
     { label: 'Leadler', path: '/leads', roles: ['ADMIN', 'CALL_CENTER', 'SALES'] },
     { label: 'Tedavi Planları', path: '/treatment', roles: ['ADMIN', 'SALES', 'DENTIST'] },
     { label: 'Faturalar', path: '/invoices', roles: ['ADMIN', 'BANKO'] },
+    { label: 'Raporlar', path: '/reports', roles: ['ADMIN'] },
     { label: 'Kullanıcılar', path: '/users', roles: ['ADMIN'] },
   ].filter((link) => link.roles.includes(user?.role || ''));
 
@@ -50,11 +52,22 @@ export const Dashboard: React.FC = () => {
       <PageHeader
         title="Genel Bakış"
         subtitle={`Hoş geldiniz ${user?.name} · ${ROLE_LABEL[user?.role || ''] || user?.role}`}
+        action={
+          user?.role === 'ADMIN' ? (
+            <Link
+              to="/reports"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700"
+            >
+              Raporları Görüntüle
+            </Link>
+          ) : undefined
+        }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
         <StatCard label="Toplam Hasta" value={data.totalPatients} hint={`${totalLeads} lead havuzda`} />
         <StatCard label="Bugünkü Randevu" value={data.todaysAppointments} hint={`${data.pendingAppointments} onay bekliyor`} tone="blue" />
+        <StatCard label="Bugünkü Geliş" value={data.todaysVisits} hint={`${data.waitingVisits} bekliyor`} tone="violet" />
         <StatCard label="Bu Ay Tahsilat" value={money(data.monthlyRevenue)} tone="green" />
         <StatCard label="Kalan Bakiye" value={money(data.outstanding)} tone="amber" />
       </div>
@@ -79,20 +92,22 @@ export const Dashboard: React.FC = () => {
             </h2>
           </div>
           {data.upcomingAppointments?.length ? (
-            <Table head={['Hasta', 'Tarih', 'Tür', 'Durum', 'Personel']}>
+            <Table head={['Kişi', 'Tarih', 'Tür', 'Kanal', 'Durum', 'Personel', 'Geliş']}>
               {data.upcomingAppointments.map((a: any) => (
                 <tr key={a.id}>
                   <td className="px-4 py-3 font-medium">
-                    {a.patient?.name} {a.patient?.surname}
+                    {a.patient ? `${a.patient.name} ${a.patient.surname}` : `Lead: ${a.lead?.name || '-'}`}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">{dateTime(a.appointmentDate)}</td>
                   <td className="px-4 py-3">
                     <Badge tone={statusTone(a.type)}>{APPT_TYPE_LABEL[a.type]}</Badge>
                   </td>
+                  <td className="px-4 py-3 text-slate-600">{a.channel || 'Bilinmiyor'}</td>
                   <td className="px-4 py-3">
                     <Badge tone={statusTone(a.status)}>{APPT_STATUS_LABEL[a.status]}</Badge>
                   </td>
                   <td className="px-4 py-3 text-slate-500">{a.user?.name || '-'}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{a.visit?.protokolNo || '-'}</td>
                 </tr>
               ))}
             </Table>

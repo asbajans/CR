@@ -11,15 +11,18 @@ const common: Record<string, NavItem[]> = {
     { label: 'Genel Bakış', path: ROUTES.DASHBOARD, icon: '📊' },
     { label: 'Hastalar', path: ROUTES.PATIENTS, icon: '👥' },
     { label: 'Randevular', path: ROUTES.APPOINTMENTS, icon: '📅' },
+    { label: 'Gelişler', path: ROUTES.VISITS, icon: '🪪' },
     { label: 'Leadler', path: ROUTES.LEADS, icon: '📞' },
     { label: 'Tedavi Planları', path: ROUTES.TREATMENT, icon: '📋' },
     { label: 'Faturalar', path: ROUTES.INVOICES, icon: '💳' },
+    { label: 'Raporlar', path: ROUTES.REPORTS, icon: '📈' },
   ],
   CALL_CENTER: [
     { label: 'Panelim', path: ROUTES.CALL_CENTER, icon: '🏠' },
     { label: 'Genel Bakış', path: ROUTES.DASHBOARD, icon: '📊' },
     { label: 'Hastalar', path: ROUTES.PATIENTS, icon: '👥' },
     { label: 'Randevular', path: ROUTES.APPOINTMENTS, icon: '📅' },
+    { label: 'Gelişler', path: ROUTES.VISITS, icon: '🪪' },
     { label: 'Leadler', path: ROUTES.LEADS, icon: '📞' },
   ],
   SALES: [
@@ -27,6 +30,7 @@ const common: Record<string, NavItem[]> = {
     { label: 'Genel Bakış', path: ROUTES.DASHBOARD, icon: '📊' },
     { label: 'Hastalar', path: ROUTES.PATIENTS, icon: '👥' },
     { label: 'Randevular', path: ROUTES.APPOINTMENTS, icon: '📅' },
+    { label: 'Gelişler', path: ROUTES.VISITS, icon: '🪪' },
     { label: 'Leadler', path: ROUTES.LEADS, icon: '📞' },
     { label: 'Tedavi Planları', path: ROUTES.TREATMENT, icon: '📋' },
   ],
@@ -35,6 +39,7 @@ const common: Record<string, NavItem[]> = {
     { label: 'Genel Bakış', path: ROUTES.DASHBOARD, icon: '📊' },
     { label: 'Hastalar', path: ROUTES.PATIENTS, icon: '👥' },
     { label: 'Randevular', path: ROUTES.APPOINTMENTS, icon: '📅' },
+    { label: 'Gelişler', path: ROUTES.VISITS, icon: '🪪' },
     { label: 'Tedavi Planları', path: ROUTES.TREATMENT, icon: '📋' },
   ],
   BANKO: [
@@ -42,6 +47,7 @@ const common: Record<string, NavItem[]> = {
     { label: 'Genel Bakış', path: ROUTES.DASHBOARD, icon: '📊' },
     { label: 'Hastalar', path: ROUTES.PATIENTS, icon: '👥' },
     { label: 'Randevular', path: ROUTES.APPOINTMENTS, icon: '📅' },
+    { label: 'Gelişler', path: ROUTES.VISITS, icon: '🪪' },
     { label: 'Faturalar', path: ROUTES.INVOICES, icon: '💳' },
   ],
 };

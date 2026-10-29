@@ -4,16 +4,27 @@ import { api } from '../../lib/api';
 import { useAppStore } from '../../store/appStore';
 import { Badge, Button, Card, Empty, Field, Input, LoadingText, Modal, PageHeader, Select, Table } from '../../components/ui';
 import {
+  APPT_TYPE_LABEL,
   LEAD_STATUS_LABEL,
+  ROLE_LABEL,
   SOURCES,
   apiError,
   dateOnly,
+  dateTime,
+  fromLocalInput,
   splitFullName,
   statusTone,
+  toLocalInput,
 } from '../../lib/format';
 
 const emptyLead = { name: '', phone: '', email: '', source: 'Instagram', campaignId: '' };
 const emptyConvert = { tc: '', birthDate: '', gender: '', email: '' };
+const emptyAppointment = {
+  type: 'MEETING',
+  userId: '',
+  dateTime: toLocalInput(new Date(Date.now() + 86400000)),
+  notes: '',
+};
 
 export const LeadsPage: React.FC = () => {
   const { user } = useAppStore();
@@ -23,6 +34,8 @@ export const LeadsPage: React.FC = () => {
   const [form, setForm] = useState({ ...emptyLead });
   const [convertLead, setConvertLead] = useState<any>(null);
   const [convertForm, setConvertForm] = useState({ ...emptyConvert });
+  const [apptLead, setApptLead] = useState<any>(null);
+  const [apptForm, setApptForm] = useState({ ...emptyAppointment });
 
   const canManage = ['ADMIN', 'CALL_CENTER', 'SALES'].includes(user?.role || '');
 
@@ -36,12 +49,44 @@ export const LeadsPage: React.FC = () => {
     queryFn: async () => (await api.get('/campaigns')).data.data as any[],
   });
 
+  const { data: staff = [] } = useQuery({
+    queryKey: ['staff'],
+    queryFn: async () => (await api.get('/users/staff')).data.data as any[],
+  });
+
+  const staffOptions = useMemo(
+    () => staff.filter((s: any) => (apptForm.type === 'MEETING' ? s.role === 'SALES' : s.role === 'DENTIST')),
+    [staff, apptForm.type]
+  );
+
   const filtered = useMemo(() => (filter ? leads.filter((l) => l.status === filter) : leads), [leads, filter]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['leads'] });
+    queryClient.invalidateQueries({ queryKey: ['appointments'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard'] });
   };
+
+  const appointmentMutation = useMutation({
+    mutationFn: async () => {
+      await api.post('/appointments', {
+        leadId: apptLead.id,
+        type: apptForm.type,
+        userId: apptForm.userId || null,
+        channel: apptLead.source,
+        campaignId: apptLead.campaignId || undefined,
+        appointmentDate: fromLocalInput(apptForm.dateTime),
+        notes: apptForm.notes || undefined,
+      });
+    },
+    onSuccess: () => {
+      invalidate();
+      setApptLead(null);
+      setApptForm({ ...emptyAppointment });
+      alert('Randevu oluşturuldu. Lead hasta kaydına dönüşmeden randevu takip edilebilir.');
+    },
+    onError: (err) => alert(apiError(err)),
+  });
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -121,7 +166,7 @@ export const LeadsPage: React.FC = () => {
         ) : filtered.length === 0 ? (
           <Empty title="Lead bulunamadı" hint="Yeni lead ekleyerek başlayın." />
         ) : (
-          <Table head={['Ad', 'Telefon', 'Kaynak', 'Kampanya', 'Durum', 'Kayıt', 'İşlem']}>
+          <Table head={['Ad', 'Telefon', 'Kaynak', 'Kampanya', 'Durum', 'Son Randevu', 'Kayıt', 'İşlem']}>
             {filtered.map((lead: any) => (
               <tr key={lead.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3">
@@ -131,12 +176,27 @@ export const LeadsPage: React.FC = () => {
                       Hasta: {lead.patient.hastaNo}
                     </p>
                   )}
+                  {lead.visits?.[0] && (
+                    <p className="text-xs text-slate-400 font-mono">Geliş: {lead.visits[0].protokolNo}</p>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-slate-600">{lead.phone}</td>
                 <td className="px-4 py-3">{lead.source}</td>
                 <td className="px-4 py-3 text-slate-500">{lead.campaign?.name || '-'}</td>
                 <td className="px-4 py-3">
                   <Badge tone={statusTone(lead.status)}>{LEAD_STATUS_LABEL[lead.status]}</Badge>
+                </td>
+                <td className="px-4 py-3">
+                  {lead.appointments?.[0] ? (
+                    <>
+                      <Badge tone={statusTone(lead.appointments[0].type)}>
+                        {APPT_TYPE_LABEL[lead.appointments[0].type]}
+                      </Badge>
+                      <p className="text-xs text-slate-400 mt-1">{dateTime(lead.appointments[0].appointmentDate)}</p>
+                    </>
+                  ) : (
+                    <span className="text-xs text-slate-400">Randevu yok</span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-slate-500">{dateOnly(lead.createdAt)}</td>
                 <td className="px-4 py-3">
@@ -153,6 +213,17 @@ export const LeadsPage: React.FC = () => {
                           </option>
                         ))}
                       </Select>
+                    )}
+                    {canManage && (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setApptLead(lead);
+                          setApptForm({ ...emptyAppointment });
+                        }}
+                      >
+                        Randevu Ver
+                      </Button>
                     )}
                     {canManage && !lead.patient && (
                       <Button
@@ -223,6 +294,61 @@ export const LeadsPage: React.FC = () => {
             </Field>
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        open={!!apptLead}
+        onClose={() => setApptLead(null)}
+        title={`Randevu Ver - ${apptLead?.name || ''}`}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setApptLead(null)}>
+              Vazgeç
+            </Button>
+            <Button onClick={() => appointmentMutation.mutate()} disabled={appointmentMutation.isPending}>
+              {appointmentMutation.isPending ? 'Oluşturuluyor...' : 'Randevu Oluştur'}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-500">
+          Lead hasta kaydına dönüşmeden randevu alabilir. Kanal: <strong>{apptLead?.source}</strong>, kampanya:{' '}
+          <strong>{apptLead?.campaign?.name || '-'}</strong>
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Randevu Türü">
+            <Select
+              value={apptForm.type}
+              onChange={(e) => setApptForm({ ...apptForm, type: e.target.value, userId: '' })}
+            >
+              {Object.entries(APPT_TYPE_LABEL).map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Personel">
+            <Select value={apptForm.userId} onChange={(e) => setApptForm({ ...apptForm, userId: e.target.value })}>
+              <option value="">Atanmadı</option>
+              {staffOptions.map((s: any) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({ROLE_LABEL[s.role]})
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+        <Field label="Tarih ve Saat *">
+          <Input
+            type="datetime-local"
+            value={apptForm.dateTime}
+            onChange={(e) => setApptForm({ ...apptForm, dateTime: e.target.value })}
+          />
+        </Field>
+        <Field label="Not">
+          <Input value={apptForm.notes} onChange={(e) => setApptForm({ ...apptForm, notes: e.target.value })} />
+        </Field>
       </Modal>
 
       <Modal

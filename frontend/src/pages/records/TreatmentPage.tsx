@@ -115,7 +115,7 @@ export const TreatmentPage: React.FC = () => {
         ) : plans.length === 0 ? (
           <Empty title="Tedavi planı bulunamadı" />
         ) : (
-          <Table head={['Hasta', 'Durum', 'Toplam', 'Kalem', 'Tarih', 'İşlem']}>
+          <Table head={['Hasta', 'Kanal', 'Satışı Yapan', 'Durum', 'Toplam', 'Kalem', 'Tarih', 'İşlem']}>
             {plans.map((plan: any) => (
               <tr key={plan.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3">
@@ -126,6 +126,11 @@ export const TreatmentPage: React.FC = () => {
                     <p className="text-xs text-slate-400">{plan.patient?.hastaNo}</p>
                   </button>
                 </td>
+                <td className="px-4 py-3">
+                  <p className="text-slate-700">{plan.channel || 'Bilinmiyor'}</p>
+                  <p className="text-xs text-slate-400">{plan.campaign?.name || '-'}</p>
+                </td>
+                <td className="px-4 py-3 text-slate-600">{plan.createdBy?.name || '-'}</td>
                 <td className="px-4 py-3">
                   <Badge tone={statusTone(plan.status)}>{PLAN_STATUS_LABEL[plan.status]}</Badge>
                 </td>
@@ -287,6 +292,11 @@ export const TreatmentPage: React.FC = () => {
               {Number(detail.discount) > 0 && (
                 <span className="text-xs text-slate-400">indirim {money(detail.discount)}</span>
               )}
+            </div>
+            <div className="flex flex-wrap gap-4 text-sm text-slate-500">
+              <span>Kanal: <strong className="text-slate-700">{detail.channel || 'Bilinmiyor'}</strong></span>
+              <span>Kampanya: <strong className="text-slate-700">{detail.campaign?.name || '-'}</strong></span>
+              <span>Satışı Yapan: <strong className="text-slate-700">{detail.createdBy?.name || '-'}</strong></span>
             </div>
             {detail.paymentPlan?.note && (
               <p className="text-sm text-slate-500">Ödeme planı: {detail.paymentPlan.note}</p>

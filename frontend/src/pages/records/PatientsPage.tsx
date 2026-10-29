@@ -7,6 +7,7 @@ import {
   APPT_STATUS_LABEL,
   APPT_TYPE_LABEL,
   PLAN_STATUS_LABEL,
+  VISIT_STATUS_LABEL,
   apiError,
   dateOnly,
   dateTime,
@@ -284,6 +285,27 @@ export const PatientsPage: React.FC = () => {
                 </Table>
               ) : (
                 <p className="text-sm text-slate-400">Randevu kaydı yok.</p>
+              )}
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-slate-800 mb-3">Geliş Kayıtları</h3>
+              {detail.visits?.length ? (
+                <Table head={['Protokol No', 'Geliş Tarihi', 'Randevu', 'Kanal', 'Durum']}>
+                  {detail.visits.map((visit: any) => (
+                    <tr key={visit.id}>
+                      <td className="px-4 py-2 font-mono text-xs text-slate-600">{visit.protokolNo}</td>
+                      <td className="px-4 py-2">{dateTime(visit.visitDate)}</td>
+                      <td className="px-4 py-2 text-xs text-slate-500">{visit.appointment?.randevuNo || '-'}</td>
+                      <td className="px-4 py-2">{visit.channel || 'Bilinmiyor'}</td>
+                      <td className="px-4 py-2">
+                        <Badge tone={statusTone(visit.status)}>{VISIT_STATUS_LABEL[visit.status]}</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </Table>
+              ) : (
+                <p className="text-sm text-slate-400">Geliş kaydı yok.</p>
               )}
             </div>
 

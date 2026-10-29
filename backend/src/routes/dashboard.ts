@@ -37,6 +37,9 @@ router.get(
       recentLeads,
       myTodayAppointments,
       myUpcomingAppointments,
+      todaysVisits,
+      waitingVisits,
+      totalVisits,
     ] = await Promise.all([
       prisma.patient.count(),
       prisma.appointment.count({
@@ -48,7 +51,13 @@ router.get(
       prisma.appointment.count({ where: { status: 'PENDING' } }),
       prisma.appointment.findMany({
         where: { appointmentDate: { gte: today.start }, status: { in: ['PENDING', 'CONFIRMED'] } },
-        include: { patient: true, user: { select: { id: true, name: true, role: true } } },
+        include: {
+          patient: true,
+          lead: true,
+          user: { select: { id: true, name: true, role: true } },
+          createdBy: { select: { id: true, name: true, role: true } },
+          visit: { select: { id: true, protokolNo: true, status: true } },
+        },
         orderBy: { appointmentDate: 'asc' },
         take: 8,
       }),
@@ -77,6 +86,11 @@ router.get(
         orderBy: { appointmentDate: 'asc' },
         take: 8,
       }),
+      prisma.patientVisit.count({
+        where: { visitDate: { gte: today.start, lt: today.end } },
+      }),
+      prisma.patientVisit.count({ where: { status: 'WAITING' } }),
+      prisma.patientVisit.count(),
     ]);
 
     const monthStartDate = monthStart();
@@ -108,6 +122,9 @@ router.get(
         recentLeads,
         myTodayAppointments,
         myUpcomingAppointments,
+        todaysVisits,
+        waitingVisits,
+        totalVisits,
       },
     });
   })

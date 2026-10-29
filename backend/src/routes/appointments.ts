@@ -8,28 +8,92 @@ import { z } from 'zod';
 const router = Router();
 
 const statusEnum = z.enum(['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW']);
-const typeEnum = z.enum(['CONSULTATION', 'TREATMENT']);
+const typeEnum = z.enum(['MEETING', 'EXAMINATION', 'TREATMENT']);
 
-const appointmentSchema = z.object({
-  randevuNo: z.string().min(1).optional(),
-  patientId: z.string().uuid(),
-  userId: z.string().uuid().optional().nullable(),
-  type: typeEnum,
-  status: statusEnum.optional(),
-  appointmentDate: z.string().datetime(),
-  notes: z.string().optional(),
-});
+const appointmentSchema = z
+  .object({
+    randevuNo: z.string().min(1).optional(),
+    patientId: z.string().uuid().optional().nullable(),
+    leadId: z.string().uuid().optional().nullable(),
+    userId: z.string().uuid().optional().nullable(),
+    type: typeEnum,
+    status: statusEnum.optional(),
+    channel: z.string().optional(),
+    campaignId: z.string().uuid().optional().nullable(),
+    appointmentDate: z.string().datetime(),
+    notes: z.string().optional(),
+  })
+  .refine((data) => !!data.patientId || !!data.leadId, {
+    message: 'Hasta veya lead seçilmelidir',
+  });
 
 const appointmentUpdateSchema = z.object({
+  patientId: z.string().uuid().nullable().optional(),
+  leadId: z.string().uuid().nullable().optional(),
   userId: z.string().uuid().nullable().optional(),
   type: typeEnum.optional(),
   status: statusEnum.optional(),
+  channel: z.string().optional(),
+  campaignId: z.string().uuid().nullable().optional(),
   appointmentDate: z.string().datetime().optional(),
   notes: z.string().optional(),
 });
 
 const istanbulDateStr = (date = new Date()) =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(date);
+
+const includeRelations = {
+  patient: true,
+  lead: true,
+  user: { select: { id: true, name: true, role: true } },
+  createdBy: { select: { id: true, name: true, role: true } },
+  campaign: { select: { id: true, name: true, channel: true } },
+  visit: { select: { id: true, protokolNo: true, status: true, visitDate: true } },
+} as const;
+
+async function resolveChannel(params: {
+  leadId?: string | null;
+  patientId?: string | null;
+  channel?: string;
+  campaignId?: string | null;
+}) {
+  if (params.channel && params.channel !== '') {
+    return { channel: params.channel, campaignId: params.campaignId ?? null };
+  }
+  if (params.leadId) {
+    const lead = await prisma.lead.findUnique({
+      where: { id: params.leadId },
+      select: { source: true, campaignId: true },
+    });
+    if (lead) {
+      return { channel: lead.source, campaignId: params.campaignId ?? lead.campaignId };
+    }
+  }
+  if (params.patientId) {
+    const lead = await prisma.lead.findFirst({
+      where: { patientId: params.patientId },
+      orderBy: { createdAt: 'asc' },
+      select: { source: true, campaignId: true },
+    });
+    if (lead) {
+      return { channel: lead.source, campaignId: params.campaignId ?? lead.campaignId };
+    }
+  }
+  return { channel: params.channel || 'Bilinmiyor', campaignId: params.campaignId ?? null };
+}
+
+async function validateStaff(type: string, userId?: string | null) {
+  if (!userId) return null;
+  const staff = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  if (!staff) return 'Personel bulunamadı';
+  const required = type === 'MEETING' ? 'SALES' : 'DENTIST';
+  if (staff.role !== required) {
+    return type === 'MEETING'
+      ? 'Görüşme randevuları satış personeli tarafından yapılmalıdır'
+      : 'Muayene ve tedavi randevuları doktor tarafından yapılmalıdır';
+  }
+  return null;
+}
 
 router.use(authMiddleware);
 
@@ -42,15 +106,14 @@ router.get(
     if (role === 'DENTIST') {
       where.userId = req.user!.id;
     }
-    if (req.query.status) {
-      where.status = req.query.status as string;
-    }
-    if (req.query.type) {
-      where.type = req.query.type as string;
-    }
-    if (req.query.patientId) {
-      where.patientId = req.query.patientId as string;
-    }
+    if (req.query.status) where.status = req.query.status as string;
+    if (req.query.type) where.type = req.query.type as string;
+    if (req.query.patientId) where.patientId = req.query.patientId as string;
+    if (req.query.leadId) where.leadId = req.query.leadId as string;
+    if (req.query.channel) where.channel = req.query.channel as string;
+    if (req.query.campaignId) where.campaignId = req.query.campaignId as string;
+    if (req.query.createdById) where.createdById = req.query.createdById as string;
+    if (req.query.userId && role !== 'DENTIST') where.userId = req.query.userId as string;
 
     const scope = req.query.scope as string | undefined;
     if (scope === 'today') {
@@ -63,11 +126,20 @@ router.get(
       where.appointmentDate = { lt: new Date() };
     }
 
+    const from = req.query.from as string | undefined;
+    const to = req.query.to as string | undefined;
+    if (from || to) {
+      where.appointmentDate = {
+        ...(from ? { gte: new Date(from) } : {}),
+        ...(to ? { lte: new Date(to) } : {}),
+      };
+    }
+
     const appointments = await prisma.appointment.findMany({
       where,
-      include: { patient: true, user: { select: { id: true, name: true, role: true } } },
+      include: includeRelations,
       orderBy: { appointmentDate: scope === 'past' ? 'desc' : 'asc' },
-      take: 300,
+      take: 500,
     });
     res.json({ success: true, data: appointments });
   })
@@ -78,7 +150,7 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const appointment = await prisma.appointment.findUnique({
       where: { id: req.params.id },
-      include: { patient: true, user: true },
+      include: includeRelations,
     });
     if (!appointment) {
       return res.status(404).json({ success: false, message: 'Randevu bulunamadı' });
@@ -92,19 +164,44 @@ router.post(
   roleGuard('ADMIN', 'CALL_CENTER', 'SALES', 'BANKO'),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const data = appointmentSchema.parse(req.body);
+
+    const staffError = await validateStaff(data.type, data.userId);
+    if (staffError) {
+      return res.status(400).json({ success: false, message: staffError });
+    }
+
+    const resolved = await resolveChannel({
+      leadId: data.leadId,
+      patientId: data.patientId,
+      channel: data.channel,
+      campaignId: data.campaignId,
+    });
+
     const randevuNo = data.randevuNo || (await nextRandevuNo());
     const appointment = await prisma.appointment.create({
       data: {
         randevuNo,
-        patientId: data.patientId,
+        patientId: data.patientId || null,
+        leadId: data.leadId || null,
         userId: data.userId || null,
+        createdById: req.user!.id,
         type: data.type,
         status: data.status ?? 'PENDING',
+        channel: resolved.channel,
+        campaignId: resolved.campaignId,
         appointmentDate: new Date(data.appointmentDate),
         notes: data.notes,
       },
-      include: { patient: true, user: true },
+      include: includeRelations,
     });
+
+    if (data.leadId) {
+      const lead = await prisma.lead.findUnique({ where: { id: data.leadId } });
+      if (lead && (lead.status === 'NEW' || lead.status === 'CONTACTED')) {
+        await prisma.lead.update({ where: { id: lead.id }, data: { status: 'APPOINTMENT_BOOKED' } });
+      }
+    }
+
     res.status(201).json({ success: true, data: appointment });
   })
 );
@@ -114,15 +211,30 @@ router.patch(
   roleGuard('ADMIN', 'CALL_CENTER', 'SALES', 'BANKO', 'DENTIST'),
   asyncHandler(async (req: Request, res: Response) => {
     const data = appointmentUpdateSchema.parse(req.body);
-    const { userId, appointmentDate, ...rest } = data;
+
+    if (data.userId !== undefined || data.type !== undefined) {
+      const current = await prisma.appointment.findUnique({ where: { id: req.params.id } });
+      if (!current) {
+        return res.status(404).json({ success: false, message: 'Randevu bulunamadı' });
+      }
+      const effectiveType = data.type ?? current.type;
+      const effectiveUser = data.userId !== undefined ? data.userId : current.userId;
+      const staffError = await validateStaff(effectiveType, effectiveUser);
+      if (staffError) {
+        return res.status(400).json({ success: false, message: staffError });
+      }
+    }
+
+    const { userId, appointmentDate, campaignId, ...rest } = data;
     const appointment = await prisma.appointment.update({
       where: { id: req.params.id },
       data: {
         ...rest,
         ...(userId !== undefined ? { userId } : {}),
+        ...(campaignId !== undefined ? { campaignId } : {}),
         ...(appointmentDate ? { appointmentDate: new Date(appointmentDate) } : {}),
       },
-      include: { patient: true, user: true },
+      include: includeRelations,
     });
     res.json({ success: true, data: appointment });
   })
@@ -135,7 +247,7 @@ router.patch(
     const appointment = await prisma.appointment.update({
       where: { id: req.params.id },
       data: { status },
-      include: { patient: true },
+      include: includeRelations,
     });
     res.json({ success: true, data: appointment });
   })

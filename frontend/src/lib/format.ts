@@ -51,8 +51,16 @@ export const APPT_STATUS_LABEL: Record<string, string> = {
 };
 
 export const APPT_TYPE_LABEL: Record<string, string> = {
-  CONSULTATION: 'Ön Muayene',
+  MEETING: 'Görüşme',
+  EXAMINATION: 'Muayene',
   TREATMENT: 'Tedavi',
+};
+
+export const VISIT_STATUS_LABEL: Record<string, string> = {
+  WAITING: 'Bekliyor',
+  IN_PROGRESS: 'İşlemde',
+  COMPLETED: 'Tamamlandı',
+  CANCELLED: 'İptal',
 };
 
 export const LEAD_STATUS_LABEL: Record<string, string> = {
@@ -101,17 +109,22 @@ export const statusTone = (status: string): Tone => {
     case 'COMPLETED':
     case 'PAID':
     case 'SOLD':
+    case 'TREATMENT':
       return 'green';
     case 'PENDING':
     case 'NEW':
     case 'IN_PROGRESS':
     case 'UNPAID':
+    case 'WAITING':
       return 'amber';
     case 'CANCELLED':
     case 'NO_SHOW':
     case 'OVERDUE':
       return 'red';
-    case 'CONSULTATION':
+    case 'MEETING':
+      return 'violet';
+    case 'EXAMINATION':
+      return 'blue';
     case 'CLINIC_VISIT':
       return 'violet';
     case 'CONTACTED':

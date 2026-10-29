@@ -37,7 +37,16 @@ router.get(
   '/',
   asyncHandler(async (_req: Request, res: Response) => {
     const leads = await prisma.lead.findMany({
-      include: { campaign: true, patient: { select: { id: true, hastaNo: true, name: true, surname: true } } },
+      include: {
+        campaign: true,
+        patient: { select: { id: true, hastaNo: true, name: true, surname: true } },
+        appointments: {
+          select: { id: true, randevuNo: true, type: true, status: true, appointmentDate: true },
+          orderBy: { appointmentDate: 'desc' },
+          take: 3,
+        },
+        visits: { select: { id: true, protokolNo: true, status: true, visitDate: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
     res.json({ success: true, data: leads });
@@ -49,7 +58,12 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const lead = await prisma.lead.findUnique({
       where: { id: req.params.id },
-      include: { campaign: true, patient: true },
+      include: {
+        campaign: true,
+        patient: true,
+        appointments: true,
+        visits: true,
+      },
     });
     if (!lead) {
       return res.status(404).json({ success: false, message: 'Lead bulunamadı' });

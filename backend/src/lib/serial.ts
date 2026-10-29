@@ -25,3 +25,14 @@ export async function nextRandevuNo(): Promise<string> {
   const lastNum = last ? parseInt(last.randevuNo.slice(prefix.length), 10) || 0 : 0;
   return `${prefix}${String(lastNum + 1).padStart(5, '0')}`;
 }
+
+export async function nextProtokolNo(): Promise<string> {
+  const prefix = `P-${currentYear()}-`;
+  const last = await prisma.patientVisit.findFirst({
+    where: { protokolNo: { startsWith: prefix } },
+    orderBy: { protokolNo: 'desc' },
+    select: { protokolNo: true },
+  });
+  const lastNum = last ? parseInt(last.protokolNo.slice(prefix.length), 10) || 0 : 0;
+  return `${prefix}${String(lastNum + 1).padStart(5, '0')}`;
+}

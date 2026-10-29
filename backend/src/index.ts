@@ -14,6 +14,8 @@ import treatmentRoutes from './routes/treatment';
 import invoiceRoutes from './routes/invoices';
 import webhookRoutes from './routes/webhooks';
 import dashboardRoutes from './routes/dashboard';
+import visitRoutes from './routes/visits';
+import reportRoutes from './routes/reports';
 
 dotenv.config();
 
@@ -38,6 +40,8 @@ app.use('/api/treatment', treatmentRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/visits', visitRoutes);
+app.use('/api/reports', reportRoutes);
 
 app.use(errorHandler);
 

@@ -2,22 +2,43 @@ import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { useAppStore } from '../../store/appStore';
-import { Badge, Button, Card, Empty, Field, Input, LoadingText, Modal, PageHeader, Select, Table, Textarea } from '../../components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  Empty,
+  Field,
+  Input,
+  LoadingText,
+  Modal,
+  PageHeader,
+  Select,
+  StatCard,
+  Table,
+  Textarea,
+} from '../../components/ui';
 import {
   APPT_STATUS_LABEL,
   APPT_TYPE_LABEL,
   ROLE_LABEL,
+  SOURCES,
+  VISIT_STATUS_LABEL,
   apiError,
   dateTime,
   fromLocalInput,
+  isToday,
   statusTone,
   toLocalInput,
 } from '../../lib/format';
 
 const emptyForm = {
+  target: 'patient' as 'patient' | 'lead',
   patientId: '',
-  type: 'CONSULTATION',
+  leadId: '',
+  type: 'MEETING',
   userId: '',
+  channel: '',
+  campaignId: '',
   dateTime: toLocalInput(new Date(Date.now() + 3600000)),
   notes: '',
 };
@@ -28,22 +49,25 @@ export const AppointmentsPage: React.FC = () => {
   const [status, setStatus] = useState('');
   const [type, setType] = useState('');
   const [scope, setScope] = useState('');
+  const [channel, setChannel] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
   const [reschedule, setReschedule] = useState<any>(null);
   const [rescheduleDate, setRescheduleDate] = useState('');
 
   const canCreate = ['ADMIN', 'CALL_CENTER', 'SALES', 'BANKO'].includes(user?.role || '');
-  const canReschedule = ['ADMIN', 'CALL_CENTER', 'SALES', 'BANKO'].includes(user?.role || '');
+  const canArrive = ['ADMIN', 'CALL_CENTER', 'SALES', 'BANKO'].includes(user?.role || '');
+  const canReschedule = canCreate;
 
   const { data: appointments = [], isLoading } = useQuery({
-    queryKey: ['appointments', { status, type, scope }],
+    queryKey: ['appointments', { status, type, scope, channel }],
     queryFn: async () => {
       const res = await api.get('/appointments', {
         params: {
           ...(status ? { status } : {}),
           ...(type ? { type } : {}),
           ...(scope ? { scope } : {}),
+          ...(channel ? { channel } : {}),
         },
       });
       return res.data.data as any[];
@@ -55,28 +79,49 @@ export const AppointmentsPage: React.FC = () => {
     queryFn: async () => (await api.get('/patients')).data.data as any[],
   });
 
+  const { data: leads = [] } = useQuery({
+    queryKey: ['leads'],
+    queryFn: async () => (await api.get('/leads')).data.data as any[],
+  });
+
   const { data: staff = [] } = useQuery({
     queryKey: ['staff'],
     queryFn: async () => (await api.get('/users/staff')).data.data as any[],
   });
 
+  const { data: campaigns = [] } = useQuery({
+    queryKey: ['campaigns'],
+    queryFn: async () => (await api.get('/campaigns')).data.data as any[],
+  });
+
   const staffOptions = useMemo(
-    () => staff.filter((s: any) => (form.type === 'CONSULTATION' ? s.role === 'SALES' : s.role === 'DENTIST')),
+    () => staff.filter((s: any) => (form.type === 'MEETING' ? s.role === 'SALES' : s.role === 'DENTIST')),
     [staff, form.type]
   );
 
+  const summary = useMemo(() => {
+    const todays = appointments.filter((a) => isToday(a.appointmentDate)).length;
+    const pending = appointments.filter((a) => a.status === 'PENDING').length;
+    const leadBookings = appointments.filter((a) => a.leadId).length;
+    return { todays, pending, leadBookings };
+  }, [appointments]);
+
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['appointments'] });
+    queryClient.invalidateQueries({ queryKey: ['visits'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     queryClient.invalidateQueries({ queryKey: ['patient'] });
+    queryClient.invalidateQueries({ queryKey: ['leads'] });
   };
 
   const createMutation = useMutation({
     mutationFn: async () => {
       await api.post('/appointments', {
-        patientId: form.patientId,
+        ...(form.target === 'patient' ? { patientId: form.patientId } : { leadId: form.leadId }),
         type: form.type,
         userId: form.userId || null,
+        channel: form.channel || undefined,
+        campaignId: form.campaignId || undefined,
         appointmentDate: fromLocalInput(form.dateTime),
         notes: form.notes || undefined,
       });
@@ -97,6 +142,15 @@ export const AppointmentsPage: React.FC = () => {
     onError: (err) => alert(apiError(err)),
   });
 
+  const arriveMutation = useMutation({
+    mutationFn: async (id: string) => (await api.post('/visits', { appointmentId: id })).data.data,
+    onSuccess: (visit) => {
+      invalidate();
+      alert(`Geliş kaydı oluşturuldu. Protokol No: ${visit.protokolNo}`);
+    },
+    onError: (err) => alert(apiError(err)),
+  });
+
   const rescheduleMutation = useMutation({
     mutationFn: async () => {
       await api.patch(`/appointments/${reschedule.id}`, { appointmentDate: fromLocalInput(rescheduleDate) });
@@ -112,29 +166,56 @@ export const AppointmentsPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Randevular"
-        subtitle="Ön muayene ve tedavi randevularını yönetin"
-        action={canCreate ? <Button onClick={() => setCreateOpen(true)}>+ Yeni Randevu</Button> : undefined}
+        subtitle="Görüşme, muayene ve tedavi randevuları; her randevu hasta veya lead ile ilişkilendirilir"
+        action={
+          canCreate ? (
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => (window.location.href = '/visits')}>
+                Geliş Kayıtları
+              </Button>
+              <Button onClick={() => setCreateOpen(true)}>+ Yeni Randevu</Button>
+            </div>
+          ) : undefined
+        }
       />
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <StatCard label="Listedeki Randevu" value={appointments.length} />
+        <StatCard label="Bugün" value={summary.todays} tone="blue" />
+        <StatCard label="Lead Randevusu" value={summary.leadBookings} hint={`${summary.pending} onay bekliyor`} tone="violet" />
+      </div>
+
       <Card className="p-4 flex flex-wrap gap-3">
-        <Select value={scope} onChange={(e) => setScope(e.target.value)} className="max-w-[180px]">
+        <Select value={scope} onChange={(e) => setScope(e.target.value)} className="max-w-[170px]">
           <option value="">Tüm Zamanlar</option>
           <option value="today">Bugün</option>
           <option value="upcoming">Yaklaşan</option>
           <option value="past">Geçmiş</option>
         </Select>
-        <Select value={type} onChange={(e) => setType(e.target.value)} className="max-w-[180px]">
+        <Select value={type} onChange={(e) => setType(e.target.value)} className="max-w-[170px]">
           <option value="">Tüm Türler</option>
-          <option value="CONSULTATION">Ön Muayene</option>
-          <option value="TREATMENT">Tedavi</option>
+          {Object.entries(APPT_TYPE_LABEL).map(([key, label]) => (
+            <option key={key} value={key}>
+              {label}
+            </option>
+          ))}
         </Select>
-        <Select value={status} onChange={(e) => setStatus(e.target.value)} className="max-w-[180px]">
+        <Select value={status} onChange={(e) => setStatus(e.target.value)} className="max-w-[170px]">
           <option value="">Tüm Durumlar</option>
           {Object.entries(APPT_STATUS_LABEL).map(([key, label]) => (
             <option key={key} value={key}>
               {label}
             </option>
           ))}
+        </Select>
+        <Select value={channel} onChange={(e) => setChannel(e.target.value)} className="max-w-[170px]">
+          <option value="">Tüm Kanallar</option>
+          {SOURCES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+          <option value="Bilinmiyor">Bilinmiyor</option>
         </Select>
       </Card>
 
@@ -144,50 +225,97 @@ export const AppointmentsPage: React.FC = () => {
         ) : appointments.length === 0 ? (
           <Empty title="Randevu bulunamadı" hint="Filtreleri değiştirin veya yeni randevu oluşturun." />
         ) : (
-          <Table head={['Randevu No', 'Hasta', 'Tarih', 'Tür', 'Personel', 'Durum', 'İşlem']}>
-            {appointments.map((a: any) => (
-              <tr key={a.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3 font-mono text-xs text-slate-500">{a.randevuNo}</td>
-                <td className="px-4 py-3">
-                  <p className="font-semibold text-slate-900">
-                    {a.patient?.name} {a.patient?.surname}
-                  </p>
-                  <p className="text-xs text-slate-400">{a.patient?.phone}</p>
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">{dateTime(a.appointmentDate)}</td>
-                <td className="px-4 py-3">
-                  <Badge tone={statusTone(a.type)}>{APPT_TYPE_LABEL[a.type]}</Badge>
-                </td>
-                <td className="px-4 py-3 text-slate-600">{a.user?.name || '-'}</td>
-                <td className="px-4 py-3">
-                  <Select
-                    value={a.status}
-                    onChange={(e) => statusMutation.mutate({ id: a.id, status: e.target.value })}
-                    className="text-xs py-1 max-w-[150px]"
-                  >
-                    {Object.entries(APPT_STATUS_LABEL).map(([key, label]) => (
-                      <option key={key} value={key}>
-                        {label}
-                      </option>
-                    ))}
-                  </Select>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  {canReschedule && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        setReschedule(a);
-                        setRescheduleDate(toLocalInput(a.appointmentDate));
-                      }}
+          <Table
+            head={[
+              'Randevu No',
+              'Hasta / Lead',
+              'Tarih',
+              'Tür',
+              'Kanal',
+              'Personel',
+              'Randevuyu Veren',
+              'Durum',
+              'Geliş',
+              'İşlem',
+            ]}
+          >
+            {appointments.map((a: any) => {
+              const person = a.patient || a.lead;
+              return (
+                <tr key={a.id} className="hover:bg-slate-50">
+                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{a.randevuNo}</td>
+                  <td className="px-4 py-3">
+                    <p className="font-semibold text-slate-900">
+                      {person?.name} {person?.surname || ''}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {a.patient ? a.patient.hastaNo : 'Lead · hasta kaydı yok'} · {person?.phone}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">{dateTime(a.appointmentDate)}</td>
+                  <td className="px-4 py-3">
+                    <Badge tone={statusTone(a.type)}>{APPT_TYPE_LABEL[a.type]}</Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    <p className="text-slate-700">{a.channel || 'Bilinmiyor'}</p>
+                    <p className="text-xs text-slate-400">{a.campaign?.name || '-'}</p>
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">{a.user?.name || '-'}</td>
+                  <td className="px-4 py-3">
+                    <p className="text-slate-700">{a.createdBy?.name || '-'}</p>
+                    <p className="text-xs text-slate-400">{a.createdBy ? ROLE_LABEL[a.createdBy.role] : ''}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Select
+                      value={a.status}
+                      onChange={(e) => statusMutation.mutate({ id: a.id, status: e.target.value })}
+                      className="text-xs py-1 max-w-[140px]"
                     >
-                      Ertele
-                    </Button>
-                  )}
-                </td>
-              </tr>
-            ))}
+                      {Object.entries(APPT_STATUS_LABEL).map(([key, label]) => (
+                        <option key={key} value={key}>
+                          {label}
+                        </option>
+                      ))}
+                    </Select>
+                  </td>
+                  <td className="px-4 py-3">
+                    {a.visit ? (
+                      <div>
+                        <p className="font-mono text-xs text-slate-600">{a.visit.protokolNo}</p>
+                        <Badge tone={statusTone(a.visit.status)}>{VISIT_STATUS_LABEL[a.visit.status]}</Badge>
+                      </div>
+                    ) : a.status === 'CANCELLED' || a.status === 'NO_SHOW' ? (
+                      <span className="text-xs text-slate-400">-</span>
+                    ) : canArrive ? (
+                      <Button
+                        size="sm"
+                        variant="success"
+                        onClick={() => arriveMutation.mutate(a.id)}
+                        disabled={arriveMutation.isPending}
+                      >
+                        Geliş Al
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-slate-400">Bekliyor</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {canReschedule && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          setReschedule(a);
+                          setRescheduleDate(toLocalInput(a.appointmentDate));
+                        }}
+                      >
+                        Ertele
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </Table>
         )}
       </Card>
@@ -196,6 +324,7 @@ export const AppointmentsPage: React.FC = () => {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         title="Yeni Randevu"
+        wide
         footer={
           <>
             <Button variant="secondary" onClick={() => setCreateOpen(false)}>
@@ -203,14 +332,41 @@ export const AppointmentsPage: React.FC = () => {
             </Button>
             <Button
               onClick={() => createMutation.mutate()}
-              disabled={!form.patientId || createMutation.isPending}
+              disabled={
+                (form.target === 'patient' ? !form.patientId : !form.leadId) || createMutation.isPending
+              }
             >
               {createMutation.isPending ? 'Oluşturuluyor...' : 'Randevu Oluştur'}
             </Button>
           </>
         }
       >
-        <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setForm({ ...form, target: 'patient', patientId: '', leadId: '' })}
+            className={`rounded-lg border px-4 py-2 text-sm font-semibold ${
+              form.target === 'patient'
+                ? 'border-blue-500 bg-blue-50 text-blue-700'
+                : 'border-slate-300 text-slate-600'
+            }`}
+          >
+            Kayıtlı Hasta
+          </button>
+          <button
+            type="button"
+            onClick={() => setForm({ ...form, target: 'lead', patientId: '', leadId: '' })}
+            className={`rounded-lg border px-4 py-2 text-sm font-semibold ${
+              form.target === 'lead'
+                ? 'border-violet-500 bg-violet-50 text-violet-700'
+                : 'border-slate-300 text-slate-600'
+            }`}
+          >
+            Lead (Hasta Kaydı Yok)
+          </button>
+        </div>
+
+        {form.target === 'patient' ? (
           <Field label="Hasta *">
             <Select value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })}>
               <option value="">Hasta seçin</option>
@@ -221,45 +377,88 @@ export const AppointmentsPage: React.FC = () => {
               ))}
             </Select>
           </Field>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Randevu Türü">
-              <Select
-                value={form.type}
-                onChange={(e) => setForm({ ...form, type: e.target.value, userId: '' })}
-              >
-                <option value="CONSULTATION">Ön Muayene</option>
-                <option value="TREATMENT">Tedavi</option>
-              </Select>
-            </Field>
-            <Field label="Personel">
-              <Select value={form.userId} onChange={(e) => setForm({ ...form, userId: e.target.value })}>
-                <option value="">Atanmadı</option>
-                {staffOptions.map((s: any) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({ROLE_LABEL[s.role]})
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
-          <Field label="Tarih ve Saat *">
-            <Input
-              type="datetime-local"
-              value={form.dateTime}
-              onChange={(e) => setForm({ ...form, dateTime: e.target.value })}
-            />
+        ) : (
+          <Field label="Lead *" hint="Lead hasta kaydına dönüşmeden randevu verilebilir.">
+            <Select value={form.leadId} onChange={(e) => setForm({ ...form, leadId: e.target.value })}>
+              <option value="">Lead seçin</option>
+              {leads.map((l: any) => (
+                <option key={l.id} value={l.id}>
+                  {l.name} · {l.phone} · {l.source}
+                  {l.patient ? ' (hastaya dönüştü)' : ''}
+                </option>
+              ))}
+            </Select>
           </Field>
-          <Field label="Not">
-            <Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Field label="Randevu Türü *">
+            <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value, userId: '' })}>
+              {Object.entries(APPT_TYPE_LABEL).map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </Select>
           </Field>
-          <p className="text-xs text-slate-400">Randevu numarası otomatik oluşturulur.</p>
+          <Field
+            label="Personel"
+            hint={form.type === 'MEETING' ? 'Görüşmeler satış personeli tarafından yapılır.' : 'Muayene/tedavi doktor tarafından yapılır.'}
+          >
+            <Select value={form.userId} onChange={(e) => setForm({ ...form, userId: e.target.value })}>
+              <option value="">Atanmadı</option>
+              {staffOptions.map((s: any) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({ROLE_LABEL[s.role]})
+                </option>
+              ))}
+            </Select>
+          </Field>
         </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Field label="Kanal" hint="Boş bırakılırsa lead/hasta kaynağından otomatik belirlenir.">
+            <Select value={form.channel} onChange={(e) => setForm({ ...form, channel: e.target.value })}>
+              <option value="">Otomatik</option>
+              {SOURCES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Kampanya">
+            <Select value={form.campaignId} onChange={(e) => setForm({ ...form, campaignId: e.target.value })}>
+              <option value="">Kampanyasız / Otomatik</option>
+              {campaigns.map((c: any) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+
+        <Field label="Tarih ve Saat *">
+          <Input
+            type="datetime-local"
+            value={form.dateTime}
+            onChange={(e) => setForm({ ...form, dateTime: e.target.value })}
+          />
+        </Field>
+
+        <Field label="Not">
+          <Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+        </Field>
+        <p className="text-xs text-slate-400">
+          Randevu numarası otomatik oluşturulur. Randevuyu veren kişi olarak siz kaydedilirsiniz.
+        </p>
       </Modal>
 
       <Modal
         open={!!reschedule}
         onClose={() => setReschedule(null)}
-        title={`Randevuyu Ertele - ${reschedule?.patient?.name || ''} ${reschedule?.patient?.surname || ''}`}
+        title={`Randevuyu Ertele - ${reschedule?.patient?.name || reschedule?.lead?.name || ''}`}
         footer={
           <>
             <Button variant="secondary" onClick={() => setReschedule(null)}>

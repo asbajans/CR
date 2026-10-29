@@ -12,6 +12,8 @@ export const ROUTES = {
   TREATMENT: '/treatment',
   INVOICES: '/invoices',
   USERS: '/users',
+  VISITS: '/visits',
+  REPORTS: '/reports',
 } as const;
 
 export const ROLE_HOME: Record<string, string> = {
