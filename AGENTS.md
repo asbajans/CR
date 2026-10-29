@@ -74,11 +74,11 @@ CRDent, diş klinikleri için modüler, mobil uyumlu, rol tabanlı erişimli bir
 
 | Hizmet | Dış Port | İç Port | Açıklama |
 |--------|----------|---------|----------|
-| Frontend | 4000 | 80 | Kullanıcı arayüzü |
-| Backend API | 4001 | 3001 | REST API |
-| PostgreSQL | 4002 | 5432 | Veritabanı (yalnızca backend erişebilir) |
-| Redis (opsiyonel) | 4003 | 6379 | Hatırlatma kuyruğu |
-| Adminer | 4004 | 8080 | DB GUI (kısıtlanabilir) |
+| Frontend | 4100 | 80 | Kullanıcı arayüzü |
+| Backend API | 4101 | 3001 | REST API |
+| PostgreSQL | 4102 | 5432 | Veritabanı (yalnızca backend erişebilir) |
+| Redis (opsiyonel) | 4103 | 6379 | Hatırlatma kuyruğu |
+| Adminer | 4104 | 8080 | DB GUI (kısıtlanabilir) |
 
 ## Veritabanı Şeması (Prisma)
 

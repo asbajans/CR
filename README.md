@@ -36,11 +36,11 @@ Lead (Kampanya / Meta / Web / WhatsApp / Instagram)
 
 | Hizmet | Dış Port | Açıklama |
 |--------|----------|----------|
-| Frontend | 4000 | Kullanıcı arayüzü |
-| Backend API | 4001 | REST API |
-| PostgreSQL | 4002 | Veritabanı |
-| Redis | 4003 | Kuyruk (opsiyonel) |
-| Adminer | 4004 | DB GUI |
+| Frontend | 4100 | Kullanıcı arayüzü |
+| Backend API | 4101 | REST API |
+| PostgreSQL | 4102 | Veritabanı |
+| Redis | 4103 | Kuyruk (opsiyonel) |
+| Adminer | 4104 | DB GUI |
 
 ## Kurulum
 
