@@ -18,9 +18,11 @@ const treatmentPlanSchema = z.object({
   patientId: z.string().uuid(),
   totalPrice: z.string(),
   discount: z.string().optional(),
-  paymentPlan: z.string().optional(),
+  paymentPlan: z.record(z.any()).optional(),
   items: z.array(planItemSchema),
 });
+
+const statusEnum = z.enum(['DRAFT', 'APPROVED', 'IN_PROGRESS', 'COMPLETED']);
 
 router.use(authMiddleware);
 
@@ -51,6 +53,24 @@ router.get(
   })
 );
 
+router.get(
+  '/:id',
+  asyncHandler(async (req: Request, res: Response) => {
+    const plan = await prisma.treatmentPlan.findUnique({
+      where: { id: req.params.id },
+      include: {
+        patient: true,
+        items: { orderBy: { stepOrder: 'asc' } },
+        invoices: true,
+      },
+    });
+    if (!plan) {
+      return res.status(404).json({ success: false, message: 'Tedavi planı bulunamadı' });
+    }
+    res.json({ success: true, data: plan });
+  })
+);
+
 router.post(
   '/',
   roleGuard('ADMIN', 'SALES', 'DENTIST'),
@@ -61,7 +81,7 @@ router.post(
         patientId: data.patientId,
         totalPrice: parseFloat(data.totalPrice),
         discount: data.discount ? parseFloat(data.discount) : 0,
-        paymentPlan: data.paymentPlan ? JSON.parse(data.paymentPlan) : null,
+        paymentPlan: data.paymentPlan ?? undefined,
         items: {
           create: data.items.map((item) => ({
             toothNo: item.toothNo,
@@ -72,7 +92,7 @@ router.post(
           })),
         },
       },
-      include: { items: true },
+      include: { items: true, patient: true },
     });
     res.status(201).json({ success: true, data: plan });
   })
@@ -86,6 +106,23 @@ router.patch(
       where: { id: req.params.id },
       data: { status: 'APPROVED', approvedAt: new Date() },
       include: { items: true },
+    });
+    res.json({ success: true, data: plan });
+  })
+);
+
+router.patch(
+  '/:id/status',
+  roleGuard('ADMIN', 'DENTIST', 'SALES'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { status } = z.object({ status: statusEnum }).parse(req.body);
+    const plan = await prisma.treatmentPlan.update({
+      where: { id: req.params.id },
+      data: {
+        status,
+        approvedAt: status === 'APPROVED' ? new Date() : undefined,
+      },
+      include: { items: true, patient: true },
     });
     res.json({ success: true, data: plan });
   })

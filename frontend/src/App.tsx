@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAppStore } from './store/appStore';
-import { ROUTES, ROLE_DASHBOARD } from './lib/constants';
+import { ROUTES, ROLE_HOME } from './lib/constants';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopBar } from './components/layout/TopBar';
 import { Login } from './pages/auth/Login';
@@ -11,6 +11,12 @@ import { Sales } from './pages/sales/Sales';
 import { Dentist } from './pages/dentist/Dentist';
 import { Banko } from './pages/banko/Banko';
 import { Admin } from './pages/admin/Admin';
+import { PatientsPage } from './pages/records/PatientsPage';
+import { AppointmentsPage } from './pages/records/AppointmentsPage';
+import { LeadsPage } from './pages/records/LeadsPage';
+import { TreatmentPage } from './pages/records/TreatmentPage';
+import { InvoicesPage } from './pages/records/InvoicesPage';
+import { UsersPage } from './pages/records/UsersPage';
 
 const App = () => {
   const { user, token, setUser } = useAppStore();
@@ -28,7 +34,7 @@ const App = () => {
     }
   }, [user, setUser]);
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !user) {
     return (
       <BrowserRouter>
         <Login />
@@ -36,7 +42,7 @@ const App = () => {
     );
   }
 
-  const allowedRoute = ROLE_DASHBOARD[user.role] || ROUTES.DASHBOARD;
+  const home = ROLE_HOME[user.role] || ROUTES.DASHBOARD;
 
   return (
     <BrowserRouter>
@@ -44,16 +50,28 @@ const App = () => {
         <TopBar user={user} />
         <div className="flex">
           <Sidebar user={user} />
-          <main className="flex-1 p-6">
+          <main className="flex-1 p-4 md:p-6 min-w-0">
             <Routes>
-              <Route path={ROUTES.LOGIN} element={<Login />} />
               <Route path={ROUTES.DASHBOARD} element={<Dashboard />} />
               <Route path={ROUTES.CALL_CENTER} element={<CallCenter />} />
               <Route path={ROUTES.SALES} element={<Sales />} />
               <Route path={ROUTES.DENTIST} element={<Dentist />} />
               <Route path={ROUTES.BANKO} element={<Banko />} />
               <Route path={ROUTES.ADMIN} element={<Admin />} />
-              <Route path="*" element={<Navigate to={allowedRoute} replace />} />
+              <Route path={ROUTES.PATIENTS} element={<PatientsPage />} />
+              <Route path={ROUTES.APPOINTMENTS} element={<AppointmentsPage />} />
+              <Route path={ROUTES.LEADS} element={<LeadsPage />} />
+              <Route path={ROUTES.TREATMENT} element={<TreatmentPage />} />
+              <Route
+                path={ROUTES.INVOICES}
+                element={['ADMIN', 'BANKO'].includes(user.role) ? <InvoicesPage /> : <Navigate to="/" replace />}
+              />
+              <Route
+                path={ROUTES.USERS}
+                element={user.role === 'ADMIN' ? <UsersPage /> : <Navigate to="/" replace />}
+              />
+              <Route path="/login" element={<Navigate to={home} replace />} />
+              <Route path="*" element={<Navigate to={home} replace />} />
             </Routes>
           </main>
         </div>

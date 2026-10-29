@@ -1,66 +1,78 @@
 import React from 'react';
 import { useAppStore } from '../../store/appStore';
-import { Link, useNavigate } from 'react-router-dom';
-import { ROUTES } from '../../lib/constants';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { ROUTES, ROLE_LABELS } from '../../lib/constants';
+
+type NavItem = { label: string; path: string; icon: string };
+
+const common: Record<string, NavItem[]> = {
+  ADMIN: [
+    { label: 'Panelim', path: ROUTES.ADMIN, icon: '🏠' },
+    { label: 'Genel Bakış', path: ROUTES.DASHBOARD, icon: '📊' },
+    { label: 'Hastalar', path: ROUTES.PATIENTS, icon: '👥' },
+    { label: 'Randevular', path: ROUTES.APPOINTMENTS, icon: '📅' },
+    { label: 'Leadler', path: ROUTES.LEADS, icon: '📞' },
+    { label: 'Tedavi Planları', path: ROUTES.TREATMENT, icon: '📋' },
+    { label: 'Faturalar', path: ROUTES.INVOICES, icon: '💳' },
+  ],
+  CALL_CENTER: [
+    { label: 'Panelim', path: ROUTES.CALL_CENTER, icon: '🏠' },
+    { label: 'Genel Bakış', path: ROUTES.DASHBOARD, icon: '📊' },
+    { label: 'Hastalar', path: ROUTES.PATIENTS, icon: '👥' },
+    { label: 'Randevular', path: ROUTES.APPOINTMENTS, icon: '📅' },
+    { label: 'Leadler', path: ROUTES.LEADS, icon: '📞' },
+  ],
+  SALES: [
+    { label: 'Panelim', path: ROUTES.SALES, icon: '🏠' },
+    { label: 'Genel Bakış', path: ROUTES.DASHBOARD, icon: '📊' },
+    { label: 'Hastalar', path: ROUTES.PATIENTS, icon: '👥' },
+    { label: 'Randevular', path: ROUTES.APPOINTMENTS, icon: '📅' },
+    { label: 'Leadler', path: ROUTES.LEADS, icon: '📞' },
+    { label: 'Tedavi Planları', path: ROUTES.TREATMENT, icon: '📋' },
+  ],
+  DENTIST: [
+    { label: 'Panelim', path: ROUTES.DENTIST, icon: '🏠' },
+    { label: 'Genel Bakış', path: ROUTES.DASHBOARD, icon: '📊' },
+    { label: 'Hastalar', path: ROUTES.PATIENTS, icon: '👥' },
+    { label: 'Randevular', path: ROUTES.APPOINTMENTS, icon: '📅' },
+    { label: 'Tedavi Planları', path: ROUTES.TREATMENT, icon: '📋' },
+  ],
+  BANKO: [
+    { label: 'Panelim', path: ROUTES.BANKO, icon: '🏠' },
+    { label: 'Genel Bakış', path: ROUTES.DASHBOARD, icon: '📊' },
+    { label: 'Hastalar', path: ROUTES.PATIENTS, icon: '👥' },
+    { label: 'Randevular', path: ROUTES.APPOINTMENTS, icon: '📅' },
+    { label: 'Faturalar', path: ROUTES.INVOICES, icon: '💳' },
+  ],
+};
 
 export const Sidebar: React.FC<{ user: any }> = ({ user }) => {
   const { logout } = useAppStore();
   const navigate = useNavigate();
 
-  const roleRoutes: Record<string, { label: string; path: string; icon: string }[]> = {
-    CALL_CENTER: [
-      { label: 'Görüntüleme Paneli', path: ROUTES.DASHBOARD, icon: '📊' },
-      { label: 'Hasta Kayıt', path: ROUTES.PATIENTS, icon: '👤' },
-      { label: 'Randevu Oluştur', path: ROUTES.APPOINTMENTS, icon: '📅' },
-      { label: 'Lead Girişi', path: ROUTES.LEADS, icon: '📞' },
-    ],
-    SALES: [
-      { label: 'Görüntüleme Paneli', path: ROUTES.DASHBOARD, icon: '📊' },
-      { label: 'Ön Muayene / Görüşme', path: ROUTES.APPOINTMENTS, icon: '👨‍⚕️' },
-      { label: 'Tedavi Planı', path: ROUTES.TREATMENT, icon: '📋' },
-      { label: 'Lead Yönetimi', path: ROUTES.LEADS, icon: '📞' },
-    ],
-    DENTIST: [
-      { label: 'Görüntüleme Paneli', path: ROUTES.DASHBOARD, icon: '📊' },
-      { label: 'Hasta Tıbbi Kartı', path: ROUTES.PATIENTS, icon: '📋' },
-      { label: 'Tedavi Randevuları', path: ROUTES.APPOINTMENTS, icon: '🦷' },
-    ],
-    BANKO: [
-      { label: 'Görüntüleme Paneli', path: ROUTES.DASHBOARD, icon: '📊' },
-      { label: 'Ödeme ve Fatura', path: ROUTES.INVOICES, icon: '💳' },
-      { label: 'Tedavi Randevu Onayı', path: ROUTES.APPOINTMENTS, icon: '📅' },
-    ],
-    ADMIN: [
-      { label: 'Görüntüleme Paneli', path: ROUTES.DASHBOARD, icon: '📊' },
-      { label: 'Hasta Yönetimi', path: ROUTES.PATIENTS, icon: '👥' },
-      { label: 'Randevular', path: ROUTES.APPOINTMENTS, icon: '📅' },
-      { label: 'Kampanyalar', path: '/campaigns', icon: '📣' },
-      { label: 'Raporlar', path: '/reports', icon: '📈' },
-      { label: 'Kullanıcılar', path: '/users', icon: '👤' },
-    ],
-  };
-
-  const routes = roleRoutes[user.role] || roleRoutes.ADMIN;
+  const routes = common[user.role] || common.ADMIN;
 
   return (
-    <aside className="hidden md:flex w-64 flex-col bg-slate-900 text-white">
+    <aside className="hidden md:flex w-64 shrink-0 flex-col bg-slate-900 text-white min-h-[calc(100vh-57px)]">
       <div className="p-6 border-b border-slate-800">
         <span className="font-bold text-xl text-blue-400">CRDent</span>
-        <p className="text-xs text-slate-400 mt-1">{user.role}</p>
+        <p className="text-xs text-slate-400 mt-1">{ROLE_LABELS[user.role] || user.role}</p>
       </div>
-      <nav className="flex-1 px-4 space-y-1">
+      <nav className="flex-1 px-3 py-4 space-y-1">
         {routes.map((r) => (
-          <Link
+          <NavLink
             key={r.path}
             to={r.path}
-            onClick={() => navigate(r.path)}
-            className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition ${
-              window.location.pathname === r.path ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'
-            }`}
+            end={r.path === '/'}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition ${
+                isActive ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+              }`
+            }
           >
             <span>{r.icon}</span>
             {r.label}
-          </Link>
+          </NavLink>
         ))}
       </nav>
       <div className="p-4 border-t border-slate-800">

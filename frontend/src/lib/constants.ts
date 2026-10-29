@@ -11,15 +11,18 @@ export const ROUTES = {
   LEADS: '/leads',
   TREATMENT: '/treatment',
   INVOICES: '/invoices',
+  USERS: '/users',
 } as const;
 
-export const ROLE_DASHBOARD: Record<string, string> = {
+export const ROLE_HOME: Record<string, string> = {
   ADMIN: '/admin',
   DENTIST: '/dentist',
   CALL_CENTER: '/call-center',
   SALES: '/sales',
   BANKO: '/banko',
 };
+
+export const ROLE_DASHBOARD = ROLE_HOME;
 
 export const ROLE_LABELS: Record<string, string> = {
   ADMIN: 'Yönetici',

@@ -6,17 +6,29 @@ import { z } from 'zod';
 
 const router = Router();
 
+const leadStatusEnum = z.enum(['NEW', 'CONTACTED', 'CLINIC_VISIT', 'TREATMENT_APPROVED', 'APPOINTMENT_BOOKED', 'SOLD']);
+
 const leadSchema = z.object({
   name: z.string().min(2),
   phone: z.string().min(5),
-  email: z.string().email().optional(),
+  email: z.string().email().optional().or(z.literal('')),
   source: z.string(),
-  campaignId: z.string().uuid().optional(),
-  status: z.enum(['NEW', 'CONTACTED', 'CLINIC_VISIT', 'TREATMENT_APPROVED', 'APPOINTMENT_BOOKED', 'SOLD']).optional(),
-  patientId: z.string().uuid().optional(),
+  campaignId: z.string().uuid().optional().nullable(),
+  status: leadStatusEnum.optional(),
+  patientId: z.string().uuid().optional().nullable(),
   utmSource: z.string().optional(),
   utmMedium: z.string().optional(),
   utmCampaign: z.string().optional(),
+});
+
+const leadUpdateSchema = z.object({
+  name: z.string().min(2).optional(),
+  phone: z.string().min(5).optional(),
+  email: z.string().email().optional().or(z.literal('')),
+  source: z.string().optional(),
+  campaignId: z.string().uuid().nullable().optional(),
+  status: leadStatusEnum.optional(),
+  patientId: z.string().uuid().nullable().optional(),
 });
 
 router.use(authMiddleware);
@@ -55,11 +67,11 @@ router.post(
       data: {
         name: data.name,
         phone: data.phone,
-        email: data.email,
+        email: data.email || null,
         source: data.source,
-        campaignId: data.campaignId,
+        campaignId: data.campaignId || null,
         status: data.status ?? 'NEW',
-        patientId: data.patientId,
+        patientId: data.patientId || null,
         utmSource: data.utmSource,
         utmMedium: data.utmMedium,
         utmCampaign: data.utmCampaign,
@@ -71,9 +83,29 @@ router.post(
 );
 
 router.patch(
+  '/:id',
+  roleGuard('ADMIN', 'CALL_CENTER', 'SALES'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const data = leadUpdateSchema.parse(req.body);
+    const { email, campaignId, patientId, ...rest } = data;
+    const lead = await prisma.lead.update({
+      where: { id: req.params.id },
+      data: {
+        ...rest,
+        ...(email !== undefined ? { email: email || null } : {}),
+        ...(campaignId !== undefined ? { campaignId } : {}),
+        ...(patientId !== undefined ? { patientId } : {}),
+      },
+      include: { campaign: true, patient: true },
+    });
+    res.json({ success: true, data: lead });
+  })
+);
+
+router.patch(
   '/:id/status',
   asyncHandler(async (req: Request, res: Response) => {
-    const { status } = z.object({ status: z.enum(['NEW', 'CONTACTED', 'CLINIC_VISIT', 'TREATMENT_APPROVED', 'APPOINTMENT_BOOKED', 'SOLD']) }).parse(req.body);
+    const { status } = z.object({ status: leadStatusEnum }).parse(req.body);
     const lead = await prisma.lead.update({
       where: { id: req.params.id },
       data: { status },
