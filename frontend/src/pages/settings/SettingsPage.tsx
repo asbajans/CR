@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
-import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Select, Table, Textarea } from '../../components/ui';
-import { ROLE_LABEL, dateOnly, dateTime, fromLocalInput, money, toLocalInput } from '../../lib/format';
+import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Select, Table } from '../../components/ui';
+import { ROLE_LABEL, dateTime, fromLocalInput, money, toLocalInput } from '../../lib/format';
 
-type Tab = 'expenses' | 'services' | 'commissions';
+type Tab = 'services' | 'commissions';
 
 export const SettingsPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<Tab>('expenses');
+  const [activeTab, setActiveTab] = useState<Tab>('services');
 
   return (
     <div className="space-y-6">
@@ -18,14 +18,6 @@ export const SettingsPage: React.FC = () => {
 
       <div className="border-b border-slate-200 bg-white rounded-t-xl">
         <nav className="flex space-x-8 px-6">
-          <button
-            onClick={() => setActiveTab('expenses')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm transition ${
-              activeTab === 'expenses' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-            }`}
-          >
-            Masraflar
-          </button>
           <button
             onClick={() => setActiveTab('commissions')}
             className={`py-4 px-1 border-b-2 font-medium text-sm transition ${
@@ -46,253 +38,19 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       <div className="px-6 pb-6">
-        {activeTab === 'expenses' ? <ExpensesTab /> : activeTab === 'services' ? <ServicesTab /> : <CommissionsTab />}
+        {activeTab === 'services' ? <ServicesTab /> : <CommissionsTab />}
       </div>
-    </div>
-  );
-};
-
-const ExpensesTab: React.FC = () => {
-  const queryClient = useQueryClient();
-  const [categoryModal, setCategoryModal] = useState<{ open: boolean; id?: string; name: string; description: string }>({
-    open: false,
-    name: '',
-    description: '',
-  });
-  const [expenseModal, setExpenseModal] = useState<{
-    open: boolean;
-    id?: string;
-    categoryId: string;
-    name: string;
-    amount: string;
-    expenseDate: string;
-    description: string;
-  }>({
-    open: false,
-    categoryId: '',
-    name: '',
-    amount: '',
-    expenseDate: toLocalInput(),
-    description: '',
-  });
-  const [categoryFilter, setCategoryFilter] = useState('');
-
-  const { data: categories } = useQuery({
-    queryKey: ['expense-categories'],
-    queryFn: async () => (await api.get('/settings/expense-categories')).data.data as any[],
-  });
-
-  const { data: expenses } = useQuery({
-    queryKey: ['expenses', categoryFilter],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (categoryFilter) params.append('categoryId', categoryFilter);
-      const { data } = await api.get(`/settings/expenses${params.toString() ? `?${params}` : ''}`);
-      return data.data as any[];
-    },
-  });
-
-  const saveCategory = async () => {
-    if (!categoryModal.name.trim()) return;
-    if (categoryModal.id) {
-      await api.patch(`/settings/expense-categories/${categoryModal.id}`, {
-        name: categoryModal.name.trim(),
-        description: categoryModal.description.trim() || undefined,
-      });
-    } else {
-      await api.post('/settings/expense-categories', {
-        name: categoryModal.name.trim(),
-        description: categoryModal.description.trim() || undefined,
-      });
-    }
-    setCategoryModal({ open: false, name: '', description: '' });
-    queryClient.invalidateQueries({ queryKey: ['expense-categories'] });
-  };
-
-  const deleteCategory = async (id: string) => {
-    if (!confirm('Bu masraf kategorisini silmek istediğinizden emin misiniz?')) return;
-    await api.delete(`/settings/expense-categories/${id}`);
-    queryClient.invalidateQueries({ queryKey: ['expense-categories'] });
-  };
-
-  const saveExpense = async () => {
-    if (!expenseModal.categoryId || !expenseModal.name.trim()) return;
-    const payload = {
-      categoryId: expenseModal.categoryId,
-      name: expenseModal.name.trim(),
-      amount: expenseModal.amount,
-      expenseDate: fromLocalInput(expenseModal.expenseDate),
-      description: expenseModal.description.trim() || undefined,
-    };
-    if (expenseModal.id) {
-      await api.patch(`/settings/expenses/${expenseModal.id}`, payload);
-    } else {
-      await api.post('/settings/expenses', payload);
-    }
-    setExpenseModal({ open: true, categoryId: '', name: '', amount: '', expenseDate: toLocalInput(), description: '' });
-    queryClient.invalidateQueries({ queryKey: ['expenses'] });
-  };
-
-  const deleteExpense = async (id: string) => {
-    if (!confirm('Bu masrafı silmek istediğinizden emin misiniz?')) return;
-    await api.delete(`/settings/expenses/${id}`);
-    queryClient.invalidateQueries({ queryKey: ['expenses'] });
-  };
-
-  const totalExpenses = (expenses || []).reduce((sum: number, e: any) => sum + Number(e.amount || 0), 0);
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-900">Masraf Yönetimi</h2>
-        <Button size="sm" onClick={() => setCategoryModal({ open: true, name: '', description: '' })}>
-          + Yeni Kategori
-        </Button>
-      </div>
-
-      <Card>
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-          <h3 className="font-semibold text-slate-900">Masraf Kategorileri</h3>
-          <span className="text-xs text-slate-500">{categories?.length || 0} kategori</span>
-        </div>
-        <div className="overflow-x-auto">
-          <Table head={['Kategori', 'Açıklama', 'İşlemler']}>
-            {categories?.map((c: any) => (
-              <tr key={c.id}>
-                <td className="px-4 py-3 font-medium text-slate-900">{c.name}</td>
-                <td className="px-4 py-3 text-slate-600">{c.description || '-'}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => setCategoryModal({ open: true, id: c.id, name: c.name, description: c.description || '' })}>
-                      Düzenle
-                    </Button>
-                    <Button size="sm" variant="danger" onClick={() => deleteCategory(c.id)}>
-                      Sil
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </Table>
-        </div>
-      </Card>
-
-      <Card>
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-          <h3 className="font-semibold text-slate-900">Giderler</h3>
-          <div className="flex items-center gap-3">
-            <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="w-64">
-              <option value="">Tüm Kategoriler</option>
-              {categories?.map((c: any) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-            <Button size="sm" onClick={() => setExpenseModal({ open: true, categoryId: categoryFilter || categories?.[0]?.id || '', name: '', amount: '', expenseDate: toLocalInput(), description: '' })}>
-              + Yeni Gider
-            </Button>
-          </div>
-        </div>
-        <div className="px-6 py-4 border-b border-slate-200 bg-slate-50">
-          <span className="text-sm text-slate-600">
-            Toplam: <span className="font-bold text-slate-900">{money(totalExpenses)}</span>
-          </span>
-        </div>
-        <div className="overflow-x-auto">
-          <Table head={['Tarih', 'Kategori', 'Açıklama', 'Tutar', 'İşlemler']}>
-            {expenses?.map((e: any) => (
-              <tr key={e.id}>
-                <td className="px-4 py-3 text-slate-600">{dateOnly(e.expenseDate)}</td>
-                <td className="px-4 py-3 font-medium">{e.category?.name || '-'}</td>
-                <td className="px-4 py-3 text-slate-600">{e.description || '-'}</td>
-                <td className="px-4 py-3 font-semibold text-slate-900">{money(e.amount)}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => setExpenseModal({ open: true, id: e.id, categoryId: e.categoryId, name: e.name, amount: String(e.amount), expenseDate: e.expenseDate?.slice(0, 16) || toLocalInput(), description: e.description || '' })}>
-                      Düzenle
-                    </Button>
-                    <Button size="sm" variant="danger" onClick={() => deleteExpense(e.id)}>
-                      Sil
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </Table>
-        </div>
-      </Card>
-
-      <Modal
-        open={categoryModal.open}
-        onClose={() => setCategoryModal({ open: false, name: '', description: '' })}
-        title={categoryModal.id ? 'Kategori Düzenle' : 'Yeni Kategori'}
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setCategoryModal({ open: false, name: '', description: '' })}>
-              İptal
-            </Button>
-            <Button onClick={saveCategory} disabled={!categoryModal.name.trim()}>
-              Kaydet
-            </Button>
-          </>
-        }
-      >
-        <Field label="Kategori Adı">
-          <Input value={categoryModal.name} onChange={(e) => setCategoryModal({ ...categoryModal, name: e.target.value })} placeholder="Örn: İlaç, Sınav Masrafı" />
-        </Field>
-        <Field label="Açıklama">
-          <Textarea value={categoryModal.description} onChange={(e) => setCategoryModal({ ...categoryModal, description: e.target.value })} placeholder="Opsiyonel açıklama" />
-        </Field>
-      </Modal>
-
-      <Modal
-        open={expenseModal.open}
-        onClose={() => setExpenseModal({ open: false, categoryId: '', name: '', amount: '', expenseDate: toLocalInput(), description: '' })}
-        title={expenseModal.id ? 'Gider Düzenle' : 'Yeni Gider'}
-        wide
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setExpenseModal({ open: false, categoryId: '', name: '', amount: '', expenseDate: toLocalInput(), description: '' })}>
-              İptal
-            </Button>
-            <Button onClick={saveExpense} disabled={!expenseModal.categoryId || !expenseModal.name.trim() || !expenseModal.amount}>
-              Kaydet
-            </Button>
-          </>
-        }
-      >
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Kategori">
-            <Select value={expenseModal.categoryId} onChange={(e) => setExpenseModal({ ...expenseModal, categoryId: e.target.value })}>
-              <option value="">Seçiniz</option>
-              {categories?.map((c: any) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Tutar (₺)">
-            <Input type="number" step="0.01" min="0" value={expenseModal.amount} onChange={(e) => setExpenseModal({ ...expenseModal, amount: e.target.value })} />
-          </Field>
-          <Field label="Gider Tarihi">
-            <Input type="datetime-local" value={expenseModal.expenseDate} onChange={(e) => setExpenseModal({ ...expenseModal, expenseDate: e.target.value })} />
-          </Field>
-          <Field label="Açıklama">
-            <Input value={expenseModal.description} onChange={(e) => setExpenseModal({ ...expenseModal, description: e.target.value })} />
-          </Field>
-        </div>
-        <Field label="Gider Adı">
-          <Input value={expenseModal.name} onChange={(e) => setExpenseModal({ ...expenseModal, name: e.target.value })} placeholder="Örn: Ziyaret gideri" />
-        </Field>
-      </Modal>
     </div>
   );
 };
 
 const ServicesTab: React.FC = () => {
   const queryClient = useQueryClient();
+  const [categoryModal, setCategoryModal] = useState<{ open: boolean; id?: string; name: string; description: string }>({
+    open: false,
+    name: '',
+    description: '',
+  });
   const [serviceModal, setServiceModal] = useState<{ open: boolean; id?: string; category: string; name: string; description: string; price: string; isActive: boolean }>({
     open: false,
     category: '',
@@ -309,8 +67,23 @@ const ServicesTab: React.FC = () => {
   
     const { data: serviceCategories } = useQuery({
       queryKey: ['service-categories'],
-      queryFn: async () => (await api.get('/settings/service-categories')).data.data as string[],
+      queryFn: async () => (await api.get('/settings/service-categories')).data.data as any[],
     });
+  
+    const saveCategory = async () => {
+      if (!categoryModal.name.trim()) return;
+      const payload = { name: categoryModal.name.trim(), description: categoryModal.description?.trim() || undefined };
+      const res = await api.post('/settings/service-categories', payload);
+      queryClient.invalidateQueries({ queryKey: ['service-categories'] });
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+      return res;
+    };
+  
+    const deleteCategory = async (id: string) => {
+      await api.delete(`/settings/service-categories/${id}`);
+      queryClient.invalidateQueries({ queryKey: ['service-categories'] });
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+    };
   
     const saveService = async () => {
     if (!serviceModal.category.trim() || !serviceModal.name.trim() || !serviceModal.price) return;
@@ -342,9 +115,14 @@ const ServicesTab: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-slate-900">Hizmet / Ürün Yönetimi</h2>
-        <Button size="sm" onClick={() => setServiceModal({ open: true, category: '', name: '', description: '', price: '', isActive: true })}>
-          + Yeni Hizmet / Ürün
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="secondary" onClick={() => setCategoryModal({ open: true, name: '', description: '' })}>
+            + Yeni Kategori
+          </Button>
+          <Button size="sm" onClick={() => setServiceModal({ open: true, category: '', name: '', description: '', price: '', isActive: true })}>
+          + Yeni Hizmet / 
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -398,12 +176,43 @@ const ServicesTab: React.FC = () => {
         </div>
         <div className="px-6 py-4">
           <div className="flex flex-wrap gap-2">
-            {categories?.map((cat: any) => (
-              <Badge key={cat} tone="blue">{cat}</Badge>
+            {(serviceCategories || []).map((c: any) => (
+              <Badge key={c.id} tone="blue">
+                {c.name}
+                <button
+                  onClick={() => deleteCategory(c.id)}
+                  className="ml-2 text-red-500 hover:text-red-700"
+                >
+                  ×
+                </button>
+              </Badge>
             ))}
           </div>
         </div>
       </Card>
+
+      <Modal
+        open={categoryModal.open}
+        onClose={() => setCategoryModal({ open: false, name: '', description: '' })}
+        title="Yeni Kategori"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setCategoryModal({ open: false, name: '', description: '' })}>
+              Kapat
+            </Button>
+            <Button onClick={saveCategory}>Kaydet</Button>
+          </>
+        }
+      >
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Kategori Ad">
+            <Input value={categoryModal.name} onChange={(e) => setCategoryModal({ ...categoryModal, name: e.target.value })} />
+          </Field>
+          <Field label="Aciklama">
+            <Input value={categoryModal.description} onChange={(e) => setCategoryModal({ ...categoryModal, description: e.target.value })} />
+          </Field>
+        </div>
+      </Modal>
 
       <Modal
         open={serviceModal.open}
@@ -424,8 +233,8 @@ const ServicesTab: React.FC = () => {
           <Field label="Kategori *">
               <Select value={serviceModal.category} onChange={(e) => setServiceModal({ ...serviceModal, category: e.target.value })}>
                 <option value="">— Seçiniz —</option>
-                {(serviceCategories || []).map((c: string) => (
-                  <option key={c} value={c}>{c}</option>
+                {(serviceCategories || []).map((c: any) => (
+                  <option key={c.id} value={c.name}>{c.name}</option>
                 ))}
               </Select>
           </Field>

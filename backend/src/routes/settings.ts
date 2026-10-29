@@ -190,11 +190,31 @@ router.get('/services', asyncHandler(async (_req: Request, res: Response) => {
 }));
 
 router.get('/service-categories', asyncHandler(async (_req: Request, res: Response) => {
-  const services = await prisma.service.findMany({
-    select: { category: true },
+  const categories = await prisma.serviceCategory.findMany({
+    orderBy: { name: 'asc' },
   });
-  const categories = [...new Set(services.map((s) => s.category).filter(Boolean))].sort();
   res.json({ success: true, data: categories });
+}));
+
+router.post('/service-categories', asyncHandler(async (req: AuthRequest, res: Response) => {
+  const data = z.object({
+    name: z.string().min(1),
+    description: z.string().optional(),
+  }).parse(req.body);
+  const category = await prisma.serviceCategory.create({
+    data: {
+      name: data.name,
+      description: data.description,
+    },
+  });
+  res.status(201).json({ success: true, data: category });
+}));
+
+router.delete('/service-categories/:id', asyncHandler(async (req: Request, res: Response) => {
+  await prisma.serviceCategory.delete({
+    where: { id: req.params.id },
+  });
+  res.json({ success: true, data: { deleted: true } });
 }));
 
 router.post('/services', asyncHandler(async (req: AuthRequest, res: Response) => {
