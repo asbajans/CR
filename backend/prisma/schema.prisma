@@ -180,7 +180,7 @@ model Campaign {
 }
 
 model Service {
-    id          String   @id @default(uuid())
+    id          String   @id @default(uuid()) @db.Uuid
     category    String   // implant, treatment, surgery, product, etc.
     name        String
     description String?
@@ -201,7 +201,7 @@ model TreatmentPlan {
     patient       Patient            @relation(fields: [patientId], references: [id])
     createdById   String?
     createdBy     User?              @relation("PlanCreator", fields: [createdById], references: [id])
-    doctorId      String?
+    doctorId      String?   @db.Uuid
     doctor        User?              @relation("PlanDoctor", fields: [doctorId], references: [id])
     status        TreatmentPlanStatus @default(DRAFT)
     totalPrice    Decimal
@@ -226,7 +226,7 @@ model TreatmentItem {
     planId      String
     plan        TreatmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
     toothNo     String?
-    serviceId   String?
+    serviceId   String?   @db.Uuid
     service      Service?  @relation(fields: [serviceId], references: [id])
     treatment   String
     price       Decimal
