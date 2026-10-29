@@ -56,16 +56,8 @@ export const Sidebar: React.FC<{ user: any; open?: boolean; onClose?: () => void
 
   const content = (
     <>
-      <div className="p-6 border-b border-slate-200">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">CR</span>
-          </div>
-          <div>
-            <span className="font-bold text-xl text-slate-900">CRDent</span>
-            <p className="text-xs text-slate-500 mt-1">Diş Kliniği CRM</p>
-          </div>
-        </div>
+      <div className="px-4 py-4 border-b border-slate-200 flex items-center justify-center">
+        <img src="/crdent-logo.jpg" alt="CRDent" className="h-14 w-auto mix-blend-multiply" />
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {routes.map((r) => (

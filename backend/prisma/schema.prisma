@@ -72,6 +72,7 @@ model User {
     createdAppointments Appointment[]   @relation("AppointmentCreator")
     workingHours        WorkingHours[]
     scheduleBlocks      ScheduleBlock[]
+    weeklySchedules     WeeklySchedule[]
     createdPlans        TreatmentPlan[] @relation("PlanCreator")
     doctorPlans         TreatmentPlan[] @relation("PlanDoctor")
     commissions         Commission[]    @relation("UserCommission")
@@ -179,6 +180,22 @@ model ScheduleBlock {
   updatedAt DateTime   @updatedAt
 
   @@index([userId, date])
+}
+
+model WeeklySchedule {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  weekday    Int      // 0 = Pazar .. 6 = Cumartesi
+  start      String   // HH:mm
+  end        String   // HH:mm
+  lunchStart String?
+  lunchEnd   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, weekday])
+  @@index([userId])
 }
 
 model Lead {

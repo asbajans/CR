@@ -51,7 +51,7 @@ export const AppointmentsPage: React.FC = () => {
   const [type, setType] = useState('');
   const [scope, setScope] = useState('');
   const [channel, setChannel] = useState('');
-  const [date, setDate] = useState(() => toLocalInput(new Date()));
+  const [date, setDate] = useState(() => toLocalInput(new Date()).slice(0, 10));
   const [view, setView] = useState<'list' | 'slots'>('slots');
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
@@ -60,9 +60,9 @@ export const AppointmentsPage: React.FC = () => {
   const [selectedSlot, setSelectedSlot] = useState<{ slot: string; column: any; appt?: any } | null>(null);
   const [slotMenuAnchor, setSlotMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const slotMenuRef = useRef<HTMLDivElement>(null);
-  const [drag, setDrag] = useState<{ columnId: string; userName: string; slots: string[] } | null>(null);
+  const [drag, setDrag] = useState<{ columnId: string; userName: string; role: string; slots: string[] } | null>(null);
   const [slotMode, setSlotMode] = useState<'appointment' | 'block'>('appointment');
-  const dragRef = useRef<{ columnId: string; userName: string; slots: string[] } | null>(null);
+  const dragRef = useRef<{ columnId: string; userName: string; role: string; slots: string[] } | null>(null);
   const [blockModal, setBlockModal] = useState<{
     userId: string;
     userName: string;
@@ -98,6 +98,14 @@ export const AppointmentsPage: React.FC = () => {
     queryKey: ['schedule-blocks', { date }],
     queryFn: async () => {
       const res = await api.get('/schedule/blocks', { params: { date } });
+      return res.data.data as any[];
+    },
+  });
+
+  const { data: weeklySchedules = [] } = useQuery({
+    queryKey: ['weekly'],
+    queryFn: async () => {
+      const res = await api.get('/schedule/weekly');
       return res.data.data as any[];
     },
   });
@@ -246,8 +254,14 @@ export const AppointmentsPage: React.FC = () => {
     });
   };
 
-  const workingHoursFor = (userId: string) =>
-    (workingHours as any[]).find((w: any) => (w.user?.id || w.userId) === userId);
+  const workingHoursFor = (userId: string) => {
+    const perDate = (workingHours as any[]).find((w: any) => (w.user?.id || w.userId) === userId);
+    if (perDate) return perDate;
+    const weekday = new Date(`${date}T00:00:00`).getDay();
+    return (weeklySchedules as any[]).find(
+      (w: any) => (w.user?.id || w.userId) === userId && w.weekday === weekday
+    );
+  };
 
   const isOutsideWork = (userId: string, slot: string) => {
     const wh = workingHoursFor(userId);
@@ -265,17 +279,34 @@ export const AppointmentsPage: React.FC = () => {
   useEffect(() => {
     const up = () => {
       const d = dragRef.current;
-      if (d && d.slots.length && slotMode === 'block') {
+      if (d && d.slots.length) {
         const sorted = [...d.slots].sort((a, b) => toMin(a) - toMin(b));
-        setBlockModal({
-          userId: d.columnId,
-          userName: d.userName,
-          date,
-          startTime: sorted[0],
-          endTime: addMinutes(sorted[sorted.length - 1], 15),
-          status: 'LEAVE',
-          reason: '',
-        });
+        const startTime = sorted[0];
+        const endTime = addMinutes(sorted[sorted.length - 1], 15);
+        if (slotMode === 'block') {
+          setBlockModal({
+            userId: d.columnId,
+            userName: d.userName,
+            date,
+            startTime,
+            endTime,
+            status: 'LEAVE',
+            reason: '',
+          });
+        } else {
+          setForm({
+            ...emptyForm,
+            target: 'patient',
+            patientId: '',
+            leadId: '',
+            type: d.role === 'DENTIST' ? 'DENTIST' : 'MEETING',
+            userId: d.columnId,
+            dateTime: `${date}T${startTime}`,
+            endTime,
+            notes: '',
+          });
+          setCreateOpen(true);
+        }
       }
       setDrag(null);
     };
@@ -454,39 +485,39 @@ export const AppointmentsPage: React.FC = () => {
           <LoadingText />
         ) : view === 'slots' ? (
           <>
-            <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+            <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-slate-600">
               <span className="flex items-center gap-1">
-                <span className="inline-block h-3 w-3 rounded-sm bg-blue-100" /> Görüşme
+                <span className="inline-block h-3 w-3 rounded-sm bg-blue-500" /> Görüşme
               </span>
               <span className="flex items-center gap-1">
-                <span className="inline-block h-3 w-3 rounded-sm bg-emerald-100" /> Muayene / Tedavi
+                <span className="inline-block h-3 w-3 rounded-sm bg-emerald-500" /> Muayene / Tedavi
               </span>
               <span className="flex items-center gap-1">
-                <span className="inline-block h-3 w-3 rounded-sm bg-amber-100" /> Öğle
+                <span className="inline-block h-3 w-3 rounded-sm bg-amber-500" /> Öğle
               </span>
               <span className="flex items-center gap-1">
-                <span className="inline-block h-3 w-3 rounded-sm bg-slate-200" /> İzin / Kapalı
+                <span className="inline-block h-3 w-3 rounded-sm bg-slate-400" /> İzin / Kapalı
               </span>
-              <span className="text-slate-400">
+              <span className="text-slate-500">
                 {slotMode === 'block'
                   ? 'Fareyle slotları sürükleyip seçin, bıraktığınızda kapatma penceresi açılır.'
-                  : 'Boş slota tıklayarak randevu verin. Toplu kapatmak için "Slot Kapat" moduna geçin.'}
+                  : 'Slota tıklayın veya sürükleyerek aralık seçin; randevu penceresi açılır.'}
               </span>
             </div>
-            <div className="overflow-x-auto" onMouseLeave={() => setDrag(null)}>
+            <div className="overflow-x-auto select-none" onMouseLeave={() => setDrag(null)}>
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr>
-                    <th className="sticky left-0 z-10 border border-slate-200 bg-slate-50 px-2 py-2 text-left text-xs font-semibold text-slate-500">
+                    <th className="sticky left-0 z-10 border border-slate-300 bg-slate-100 px-2 py-2 text-left text-xs font-bold text-slate-600">
                       Saat
                     </th>
                     {slotColumns.map((c: any) => (
                       <th
                         key={c.id}
-                        className="border border-slate-200 bg-slate-50 px-2 py-2 text-left text-xs font-semibold text-slate-700"
+                        className="border border-slate-300 bg-slate-100 px-2 py-2 text-left text-xs font-bold text-slate-800"
                       >
                         {c.name}
-                        <span className="ml-1 font-normal text-slate-400">
+                        <span className="ml-1 font-normal text-slate-500">
                           - {ROLE_LABEL[c.role] || c.role}
                         </span>
                       </th>
@@ -496,7 +527,7 @@ export const AppointmentsPage: React.FC = () => {
                 <tbody>
                   {slotSlots.map((slot) => (
                     <tr key={slot}>
-                      <td className="sticky left-0 z-10 border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-xs text-slate-500">
+                      <td className="sticky left-0 z-10 border border-slate-300 bg-slate-100 px-2 py-1 font-mono text-xs font-semibold text-slate-600">
                         {slot}
                       </td>
                       {slotColumns.map((c: any) => {
@@ -510,12 +541,12 @@ export const AppointmentsPage: React.FC = () => {
                           const isStart = start === slot;
                           const tone =
                             appt.type === 'MEETING'
-                              ? 'bg-blue-50 text-blue-700'
-                              : 'bg-emerald-50 text-emerald-700';
+                              ? 'bg-blue-100 text-blue-900 border-l-4 border-l-blue-500'
+                              : 'bg-emerald-100 text-emerald-900 border-l-4 border-l-emerald-500';
                           return (
                             <td
                               key={c.id}
-                              className={`border border-slate-200 px-2 py-1 align-top cursor-pointer ${tone}`}
+                              className={`border border-slate-300 px-2 py-1 align-top cursor-pointer ${tone}`}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedSlot({ slot, column: c, appt });
@@ -524,19 +555,19 @@ export const AppointmentsPage: React.FC = () => {
                             >
                               {isStart ? (
                                 <>
-                                  <p className="text-xs font-semibold text-slate-900">
+                                  <p className="text-xs font-bold text-slate-900">
                                     {appt.patient?.name || appt.lead?.name || '-'}{' '}
                                     {appt.patient?.surname || appt.lead?.surname || ''}
                                   </p>
-                                  <p className="text-[10px] text-slate-500">
+                                  <p className="text-[10px] font-medium text-slate-600">
                                     {appt.channel || 'Bilinmiyor'}
                                   </p>
-                                  <p className="text-[10px] text-slate-400">
+                                  <p className="text-[10px] text-slate-500">
                                     {APPT_TYPE_LABEL[appt.type] || appt.type}
                                   </p>
                                 </>
                               ) : (
-                                <span className="text-[10px] opacity-60">↳</span>
+                                <span className="text-[10px] opacity-70">↳</span>
                               )}
                             </td>
                           );
@@ -551,13 +582,13 @@ export const AppointmentsPage: React.FC = () => {
                               : 'Kapalı';
                           const tone =
                             block.status === 'LUNCH'
-                              ? 'bg-amber-50 text-amber-700'
-                              : 'bg-slate-200 text-slate-600';
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-slate-300 text-slate-700';
                           return (
                             <td
                               key={c.id}
                               title={block.reason || label}
-                              className={`border border-slate-200 px-2 py-1 text-center text-[10px] cursor-pointer ${tone}`}
+                              className={`border border-slate-300 px-2 py-1 text-center text-[10px] font-semibold cursor-pointer ${tone}`}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (confirm('Bu kapatmayı kaldırmak istiyor musunuz?'))
@@ -570,51 +601,33 @@ export const AppointmentsPage: React.FC = () => {
                         }
 
                         const base = outside
-                          ? 'bg-slate-100 text-slate-300'
-                          : 'hover:bg-slate-50 text-slate-300';
+                          ? 'bg-slate-100 text-slate-400'
+                          : 'bg-white text-slate-300 hover:bg-blue-50';
                         return (
                           <td
                             key={c.id}
-                            className={`border border-slate-200 px-2 py-1 align-top ${base} ${
+                            className={`border border-slate-300 px-2 py-1 align-top select-none ${base} ${
                               slotMode === 'block' ? 'cursor-crosshair' : 'cursor-pointer'
                             }`}
                             style={
                               isSelected
-                                ? { backgroundColor: '#dbeafe', color: '#1d4ed8' }
+                                ? { backgroundColor: '#93c5fd', color: '#1e3a8a', fontWeight: 700 }
                                 : undefined
                             }
                             onMouseDown={() => {
-                              if (slotMode === 'block') {
-                                setDrag({ columnId: c.id, userName: c.name, slots: [slot] });
+                              if (!outside) {
+                                setDrag({ columnId: c.id, userName: c.name, role: c.role, slots: [slot] });
                               }
                             }}
                             onMouseEnter={() => {
-                              if (slotMode === 'block') {
-                                setDrag((d) =>
-                                  d && d.columnId === c.id && !d.slots.includes(slot)
-                                    ? { ...d, slots: [...d.slots, slot] }
-                                    : d
-                                );
-                              }
-                            }}
-                            onClick={(e) => {
-                              if (slotMode === 'appointment' && !isSelected) {
-                                e.stopPropagation();
-                                setForm({
-                                  ...emptyForm,
-                                  target: 'patient',
-                                  patientId: '',
-                                  leadId: '',
-                                  type: c.role === 'DENTIST' ? 'DENTIST' : 'MEETING',
-                                  userId: c.id,
-                                  dateTime: toLocalInput(new Date(`${date}T${slot}`)),
-                                  notes: '',
-                                });
-                                setCreateOpen(true);
-                              }
+                              setDrag((d) =>
+                                d && d.columnId === c.id && !d.slots.includes(slot)
+                                  ? { ...d, slots: [...d.slots, slot] }
+                                  : d
+                              );
                             }}
                           >
-                            {isSelected ? '✓' : '-'}
+                            {isSelected ? '✓' : ''}
                           </td>
                         );
                       })}

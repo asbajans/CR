@@ -139,4 +139,55 @@ router.delete('/blocks/:id', asyncHandler(async (req: Request, res: Response) =>
   res.json({ success: true, data: { deleted: true } });
 }));
 
+// Weekly working-day template
+router.get('/weekly', asyncHandler(async (req: Request, res: Response) => {
+  const { userId } = req.query;
+  const where: Record<string, unknown> = {};
+  if (userId) where.userId = userId as string;
+  const weekly = await prisma.weeklySchedule.findMany({
+    where,
+    include: { user: { select: { id: true, name: true, role: true } } },
+    orderBy: { weekday: 'asc' },
+  });
+  res.json({ success: true, data: weekly });
+}));
+
+router.post('/weekly', asyncHandler(async (req: AuthRequest, res: Response) => {
+  const data = z.object({
+    userId: z.string().min(1),
+    days: z.array(z.number().int().min(0).max(6)),
+    start: z.string().regex(/^\d{2}:\d{2}$/),
+    end: z.string().regex(/^\d{2}:\d{2}$/),
+    lunchStart: z.string().regex(/^\d{2}:\d{2}$/).optional().nullable(),
+    lunchEnd: z.string().regex(/^\d{2}:\d{2}$/).optional().nullable(),
+  }).parse(req.body);
+
+  await prisma.weeklySchedule.deleteMany({ where: { userId: data.userId } });
+
+  if (data.days.length) {
+    await prisma.weeklySchedule.createMany({
+      data: data.days.map((weekday) => ({
+        userId: data.userId,
+        weekday,
+        start: data.start,
+        end: data.end,
+        lunchStart: data.lunchStart || null,
+        lunchEnd: data.lunchEnd || null,
+      })),
+    });
+  }
+
+  const weekly = await prisma.weeklySchedule.findMany({
+    where: { userId: data.userId },
+    include: { user: { select: { id: true, name: true, role: true } } },
+    orderBy: { weekday: 'asc' },
+  });
+  res.status(201).json({ success: true, data: weekly });
+}));
+
+router.delete('/weekly/:id', asyncHandler(async (req: Request, res: Response) => {
+  await prisma.weeklySchedule.delete({ where: { id: req.params.id } });
+  res.json({ success: true, data: { deleted: true } });
+}));
+
 export default router;

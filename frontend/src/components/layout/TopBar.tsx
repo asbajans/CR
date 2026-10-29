@@ -24,8 +24,7 @@ export const TopBar: React.FC<{ user: any; onMenuClick?: () => void }> = ({ user
           >
             <span className="text-2xl leading-none">☰</span>
           </button>
-          <span className="font-bold text-xl text-slate-900">CRDent</span>
-          <span className="hidden sm:inline text-sm text-slate-500 font-medium">Diş Kliniği CRM</span>
+          <img src="/crdent-logo.jpg" alt="CRDent" className="h-10 w-auto mix-blend-multiply md:hidden" />
         </div>
         <div className="flex items-center gap-4">
           <div className="hidden md:flex items-center gap-2 text-sm text-slate-600">

@@ -590,7 +590,18 @@ const CalendarTab: React.FC = () => {
   const [lunchStart, setLunchStart] = useState('12:00');
   const [lunchEnd, setLunchEnd] = useState('13:00');
   const [useLunch, setUseLunch] = useState(true);
+  const [weeklyDays, setWeeklyDays] = useState<number[]>([]);
   const [block, setBlock] = useState({ startTime: '09:00', endTime: '10:00', status: 'LEAVE', reason: '' });
+
+  const DAY_OPTIONS: { v: number; l: string }[] = [
+    { v: 1, l: 'Pzt' },
+    { v: 2, l: 'Sal' },
+    { v: 3, l: 'Çar' },
+    { v: 4, l: 'Per' },
+    { v: 5, l: 'Cum' },
+    { v: 6, l: 'Cmt' },
+    { v: 0, l: 'Paz' },
+  ];
 
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
@@ -613,6 +624,28 @@ const CalendarTab: React.FC = () => {
         .data.data as any[],
   });
 
+  const { data: weekly = [] } = useQuery({
+    queryKey: ['weekly', { userId }],
+    queryFn: async () =>
+      (await api.get('/schedule/weekly', { params: userId ? { userId } : {} })).data.data as any[],
+  });
+
+  React.useEffect(() => {
+    if (!userId) {
+      setWeeklyDays([]);
+      return;
+    }
+    const list = (weekly as any[]).filter((w: any) => (w.user?.id || w.userId) === userId);
+    setWeeklyDays(list.map((w: any) => w.weekday));
+    if (list[0]) {
+      setWhStart(list[0].start || '09:00');
+      setWhEnd(list[0].end || '18:00');
+      setLunchStart(list[0].lunchStart || '12:00');
+      setLunchEnd(list[0].lunchEnd || '13:00');
+      setUseLunch(!!(list[0].lunchStart && list[0].lunchEnd));
+    }
+  }, [weekly, userId]);
+
   const selectedWh = (workingHours as any[]).find((w: any) => (w.user?.id || w.userId) === userId);
 
   React.useEffect(() => {
@@ -630,20 +663,29 @@ const CalendarTab: React.FC = () => {
       alert('Personel seçin');
       return;
     }
+    if (!weeklyDays.length) {
+      alert('En az bir çalışma günü seçin');
+      return;
+    }
     try {
-      await api.post('/schedule/working-hours', {
+      await api.post('/schedule/weekly', {
         userId,
-        date,
+        days: weeklyDays,
         start: whStart,
         end: whEnd,
         lunchStart: useLunch ? lunchStart : undefined,
         lunchEnd: useLunch ? lunchEnd : undefined,
       });
+      queryClient.invalidateQueries({ queryKey: ['weekly'] });
       queryClient.invalidateQueries({ queryKey: ['working-hours'] });
-      alert('Çalışma saatleri kaydedildi');
+      alert('Haftalık çalışma günleri ve saatleri kaydedildi');
     } catch (err) {
       alert('Hata: ' + (err as Error).message);
     }
+  };
+
+  const toggleDay = (v: number) => {
+    setWeeklyDays((d) => (d.includes(v) ? d.filter((x) => x !== v) : [...d, v]));
   };
 
   const addBlock = async () => {
@@ -680,14 +722,29 @@ const CalendarTab: React.FC = () => {
               ))}
             </Select>
           </Field>
-          <Field label="Tarih">
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </Field>
         </div>
       </Card>
 
       <Card className="p-4 space-y-4">
-        <h3 className="font-semibold text-slate-800">Çalışma Saatleri</h3>
+        <h3 className="font-semibold text-slate-800">Haftalık Çalışma Günleri ve Saatleri</h3>
+        <Field label="Çalıştığı Günler">
+          <div className="flex flex-wrap gap-2">
+            {DAY_OPTIONS.map((d) => (
+              <button
+                key={d.v}
+                type="button"
+                onClick={() => toggleDay(d.v)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition ${
+                  weeklyDays.includes(d.v)
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                {d.l}
+              </button>
+            ))}
+          </div>
+        </Field>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Field label="Başlangıç">
             <Input type="time" value={whStart} onChange={(e) => setWhStart(e.target.value)} />
@@ -707,13 +764,16 @@ const CalendarTab: React.FC = () => {
           Öğle arası tanımla
         </label>
         <Button onClick={saveWorkingHours} disabled={!userId}>
-          Çalışma Saatlerini Kaydet
+          Çalışma Ayarlarını Kaydet
         </Button>
       </Card>
 
       <Card className="p-4 space-y-4">
         <h3 className="font-semibold text-slate-800">Slot Kapatma (İzin / Mola)</h3>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <Field label="Tarih">
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </Field>
           <Field label="Başlangıç">
             <Input type="time" value={block.startTime} onChange={(e) => setBlock({ ...block, startTime: e.target.value })} />
           </Field>
@@ -727,15 +787,15 @@ const CalendarTab: React.FC = () => {
               <option value="BLOCKED">Kapalı / Diğer</option>
             </Select>
           </Field>
-          <Field label="Açıklama">
-            <Input value={block.reason} onChange={(e) => setBlock({ ...block, reason: e.target.value })} placeholder="Opsiyonel" />
-          </Field>
           <div className="flex items-end">
             <Button onClick={addBlock} disabled={!userId} className="w-full">
               Ekle
             </Button>
           </div>
         </div>
+        <Field label="Açıklama">
+          <Input value={block.reason} onChange={(e) => setBlock({ ...block, reason: e.target.value })} placeholder="Opsiyonel" />
+        </Field>
 
         {(blocks as CalBlock[]).length === 0 ? (
           <Empty title="Kayıtlı kapatma yok" hint={userId ? 'Bu personel için kapatma ekleyin.' : 'Önce personel seçin.'} />
