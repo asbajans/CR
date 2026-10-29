@@ -33,7 +33,9 @@ const App = () => {
       try {
         const parsed = JSON.parse(saved);
         setUser(parsed, savedToken);
-      } catch {}
+      } catch (_e) {
+        // Ignore parse errors
+      }
     }
   }, [user, setUser]);
 
