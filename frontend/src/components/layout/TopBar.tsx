@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
-import { useAppStore } from '../store/appStore';
-import { api } from '../lib/api';
-import { ROUTES } from '../lib/constants';
+import { useAppStore } from '../../store/appStore';
+import { api } from '../../lib/api';
+import { ROUTES } from '../../lib/constants';
 import { useNavigate } from 'react-router-dom';
 
 export const TopBar: React.FC<{ user: any }> = ({ user }) => {

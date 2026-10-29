@@ -1,8 +1,7 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../middleware/asyncHandler';
 import { authMiddleware, roleGuard, AuthRequest } from '../middleware/auth';
 import { prisma } from '../lib/prisma';
-import { z } from 'zod';
 
 const router = Router();
 
@@ -11,7 +10,7 @@ router.use(authMiddleware);
 router.get(
   '/',
   roleGuard('ADMIN'),
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (_req: Request, res: Response) => {
     const users = await prisma.user.findMany({
       select: { id: true, name: true, email: true, role: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
@@ -23,7 +22,7 @@ router.get(
 router.get(
   '/:id',
   roleGuard('ADMIN'),
-  asyncHandler(async (req, res) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const user = await prisma.user.findUnique({
       where: { id: req.params.id },
       select: { id: true, name: true, email: true, role: true, createdAt: true },

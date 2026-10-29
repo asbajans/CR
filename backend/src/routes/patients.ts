@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../middleware/asyncHandler';
 import { authMiddleware, roleGuard, AuthRequest } from '../middleware/auth';
 import { prisma } from '../lib/prisma';
@@ -22,7 +22,7 @@ router.use(authMiddleware);
 
 router.get(
   '/',
-  asyncHandler(async (req: AuthRequest, res) => {
+  asyncHandler(async (req: AuthRequest, res: Response) => {
     const { role } = req.user!;
     let patients;
     if (role === 'CALL_CENTER' || role === 'SALES') {
@@ -41,7 +41,7 @@ router.get(
 
 router.get(
   '/:id',
-  asyncHandler(async (req: AuthRequest, res) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const patient = await prisma.patient.findUnique({
       where: { id: req.params.id },
       include: {
@@ -60,7 +60,7 @@ router.get(
 router.post(
   '/',
   roleGuard('ADMIN', 'CALL_CENTER', 'SALES'),
-  asyncHandler(async (req: AuthRequest, res) => {
+  asyncHandler(async (req: AuthRequest, res: Response) => {
     const data = patientSchema.parse(req.body);
     const patient = await prisma.patient.create({
       data: {
@@ -81,7 +81,7 @@ router.post(
 
 router.put(
   '/:id',
-  asyncHandler(async (req: AuthRequest, res) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const data = patientSchema.partial().parse(req.body);
     const patient = await prisma.patient.update({
       where: { id: req.params.id },

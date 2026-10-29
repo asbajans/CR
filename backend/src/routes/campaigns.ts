@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../middleware/asyncHandler';
 import { authMiddleware, roleGuard } from '../middleware/auth';
 import { prisma } from '../lib/prisma';
@@ -18,7 +18,7 @@ router.use(authMiddleware);
 
 router.get(
   '/',
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (_req: Request, res: Response) => {
     const campaigns = await prisma.campaign.findMany({
       include: { _count: { select: { leads: true } } },
       orderBy: { createdAt: 'desc' },
@@ -30,7 +30,7 @@ router.get(
 router.post(
   '/',
   roleGuard('ADMIN', 'SALES'),
-  asyncHandler(async (req, res) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const data = campaignSchema.parse(req.body);
     const campaign = await prisma.campaign.create({
       data: {

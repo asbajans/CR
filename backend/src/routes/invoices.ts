@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../middleware/asyncHandler';
 import { authMiddleware, roleGuard } from '../middleware/auth';
 import { prisma } from '../lib/prisma';
@@ -17,7 +17,7 @@ router.use(authMiddleware);
 router.get(
   '/',
   roleGuard('ADMIN', 'BANKO'),
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (_req: Request, res: Response) => {
     const invoices = await prisma.invoice.findMany({
       include: {
         plan: {
@@ -35,7 +35,7 @@ router.get(
 router.post(
   '/',
   roleGuard('ADMIN', 'BANKO'),
-  asyncHandler(async (req, res) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const data = invoiceSchema.parse(req.body);
     const invoice = await prisma.invoice.create({
       data: {
@@ -52,17 +52,17 @@ router.post(
 router.patch(
   '/:id/pay',
   roleGuard('ADMIN', 'BANKO'),
-  asyncHandler(async (req, res) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const { paidAmount } = z.object({ paidAmount: z.string() }).parse(req.body);
     const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id } });
     if (!invoice) {
       return res.status(404).json({ success: false, message: 'Fatura bulunamadı' });
     }
-    const newPaid = parseFloat(invoice.paidAmount.toString()) + parseFloat(paidAmount);
-    const status = newPaid >= parseFloat(invoice.amount.toString()) ? 'PAID' : 'PARTIAL';
+    const newPaid = Number(invoice.paidAmount) + Number(paidAmount);
+    const status = newPaid >= Number(invoice.amount) ? 'PAID' : 'PARTIAL';
     const updated = await prisma.invoice.update({
       where: { id: req.params.id },
-      data: { paidAmount: newPaid, status, paidAt: newPaid >= parseFloat(invoice.amount.toString()) ? new Date() : null },
+      data: { paidAmount: newPaid, status, paidAt: newPaid >= Number(invoice.amount) ? new Date() : null },
     });
     res.json({ success: true, data: updated });
   })

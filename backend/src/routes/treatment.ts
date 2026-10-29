@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../middleware/asyncHandler';
 import { authMiddleware, roleGuard, AuthRequest } from '../middleware/auth';
 import { prisma } from '../lib/prisma';
@@ -26,7 +26,7 @@ router.use(authMiddleware);
 
 router.get(
   '/',
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (_req: Request, res: Response) => {
     const plans = await prisma.treatmentPlan.findMany({
       include: {
         patient: { select: { id: true, hastaNo: true, name: true, surname: true } },
@@ -41,7 +41,7 @@ router.get(
 
 router.get(
   '/patient/:patientId',
-  asyncHandler(async (req, res) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const plans = await prisma.treatmentPlan.findMany({
       where: { patientId: req.params.patientId },
       include: { items: true, invoices: true },
@@ -54,7 +54,7 @@ router.get(
 router.post(
   '/',
   roleGuard('ADMIN', 'SALES', 'DENTIST'),
-  asyncHandler(async (req: AuthRequest, res) => {
+  asyncHandler(async (req: AuthRequest, res: Response) => {
     const data = treatmentPlanSchema.parse(req.body);
     const plan = await prisma.treatmentPlan.create({
       data: {
@@ -81,7 +81,7 @@ router.post(
 router.patch(
   '/:id/approve',
   roleGuard('ADMIN', 'DENTIST', 'SALES'),
-  asyncHandler(async (req, res) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const plan = await prisma.treatmentPlan.update({
       where: { id: req.params.id },
       data: { status: 'APPROVED', approvedAt: new Date() },

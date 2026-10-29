@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -22,7 +22,7 @@ const loginSchema = z.object({
 
 router.post(
   '/register',
-  asyncHandler(async (req, res) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const data = registerSchema.parse(req.body);
     const existing = await prisma.user.findUnique({ where: { email: data.email } });
     if (existing) {
@@ -39,7 +39,7 @@ router.post(
 
 router.post(
   '/login',
-  asyncHandler(async (req, res) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const data = loginSchema.parse(req.body);
     const user = await prisma.user.findUnique({ where: { email: data.email } });
     if (!user) {
@@ -49,10 +49,12 @@ router.post(
     if (!valid) {
       return res.status(401).json({ success: false, message: 'E-posta veya şifre hatalı' });
     }
+    const secret = process.env.JWT_SECRET || 'fallback-secret';
+    const expiresIn = (process.env.JWT_EXPIRE || '7d') as import('jsonwebtoken').SignOptions['expiresIn'];
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET!,
-      { expiresIn: process.env.JWT_EXPIRE || '7d' }
+      secret,
+      { expiresIn }
     );
     res.json({
       success: true,
@@ -64,7 +66,7 @@ router.post(
 router.get(
   '/me',
   authMiddleware,
-  asyncHandler(async (req: AuthRequest, res) => {
+  asyncHandler(async (req: AuthRequest, res: Response) => {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
       select: { id: true, name: true, email: true, role: true, createdAt: true },

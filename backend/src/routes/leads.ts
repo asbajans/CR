@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../middleware/asyncHandler';
 import { authMiddleware, roleGuard, AuthRequest } from '../middleware/auth';
 import { prisma } from '../lib/prisma';
@@ -23,7 +23,7 @@ router.use(authMiddleware);
 
 router.get(
   '/',
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (_req: Request, res: Response) => {
     const leads = await prisma.lead.findMany({
       include: { campaign: true, patient: { select: { id: true, hastaNo: true, name: true, surname: true } } },
       orderBy: { createdAt: 'desc' },
@@ -34,7 +34,7 @@ router.get(
 
 router.get(
   '/:id',
-  asyncHandler(async (req, res) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const lead = await prisma.lead.findUnique({
       where: { id: req.params.id },
       include: { campaign: true, patient: true },
@@ -49,7 +49,7 @@ router.get(
 router.post(
   '/',
   roleGuard('ADMIN', 'CALL_CENTER', 'SALES'),
-  asyncHandler(async (req: AuthRequest, res) => {
+  asyncHandler(async (req: AuthRequest, res: Response) => {
     const data = leadSchema.parse(req.body);
     const lead = await prisma.lead.create({
       data: {
@@ -72,8 +72,8 @@ router.post(
 
 router.patch(
   '/:id/status',
-  asyncHandler(async (req, res) => {
-    const { status } = z.enum(['NEW', 'CONTACTED', 'CLINIC_VISIT', 'TREATMENT_APPROVED', 'APPOINTMENT_BOOKED', 'SOLD']).parse(req.body);
+  asyncHandler(async (req: Request, res: Response) => {
+    const { status } = z.object({ status: z.enum(['NEW', 'CONTACTED', 'CLINIC_VISIT', 'TREATMENT_APPROVED', 'APPOINTMENT_BOOKED', 'SOLD']) }).parse(req.body);
     const lead = await prisma.lead.update({
       where: { id: req.params.id },
       data: { status },

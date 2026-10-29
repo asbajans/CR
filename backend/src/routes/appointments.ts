@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../middleware/asyncHandler';
 import { authMiddleware, roleGuard, AuthRequest } from '../middleware/auth';
 import { prisma } from '../lib/prisma';
@@ -20,7 +20,7 @@ router.use(authMiddleware);
 
 router.get(
   '/',
-  asyncHandler(async (req: AuthRequest, res) => {
+  asyncHandler(async (req: AuthRequest, res: Response) => {
     const { role } = req.user!;
     const where: any = {};
     if (role === 'DENTIST') {
@@ -37,7 +37,7 @@ router.get(
 
 router.get(
   '/:id',
-  asyncHandler(async (req, res) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const appointment = await prisma.appointment.findUnique({
       where: { id: req.params.id },
       include: { patient: true, user: true },
@@ -52,7 +52,7 @@ router.get(
 router.post(
   '/',
   roleGuard('ADMIN', 'CALL_CENTER', 'SALES', 'BANKO'),
-  asyncHandler(async (req: AuthRequest, res) => {
+  asyncHandler(async (req: AuthRequest, res: Response) => {
     const data = appointmentSchema.parse(req.body);
     const appointment = await prisma.appointment.create({
       data: {
@@ -72,8 +72,8 @@ router.post(
 
 router.patch(
   '/:id/status',
-  asyncHandler(async (req: AuthRequest, res) => {
-    const { status } = z.enum(['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW']).parse(req.body);
+  asyncHandler(async (req: Request, res: Response) => {
+    const { status } = z.object({ status: z.enum(['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW']) }).parse(req.body);
     const appointment = await prisma.appointment.update({
       where: { id: req.params.id },
       data: { status },
