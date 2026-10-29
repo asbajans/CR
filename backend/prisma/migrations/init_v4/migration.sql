@@ -19,6 +19,9 @@ CREATE UNIQUE INDEX "Service_category_name_key" ON "Service" ("category", "name"
 -- CreateService indexes
 CREATE INDEX "Service_category_idx" ON "Service" ("category");
 
+-- Add serviceCategory to CommissionRate
+ALTER TABLE "CommissionRate" ADD COLUMN "serviceCategory" TEXT;
+
 -- Add doctorId to TreatmentPlan
 ALTER TABLE "TreatmentPlan" ADD COLUMN "doctorId" TEXT;
 

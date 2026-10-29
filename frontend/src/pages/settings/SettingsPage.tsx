@@ -429,10 +429,11 @@ const ServicesTab: React.FC = () => {
 
 const CommissionsTab: React.FC = () => {
   const queryClient = useQueryClient();
-  const [rateModal, setRateModal] = useState<{ open: boolean; id?: string; role: string; type: string; rate: string; isActive: boolean }>({
+  const [rateModal, setRateModal] = useState<{ open: boolean; id?: string; role: string; type: string; serviceCategory: string; rate: string; isActive: boolean }>({
     open: false,
     role: 'DENTIST',
     type: 'doctor',
+    serviceCategory: '',
     rate: '20',
     isActive: true,
   });
@@ -478,6 +479,7 @@ const CommissionsTab: React.FC = () => {
     const payload = {
       role: rateModal.role,
       type: rateModal.type,
+      serviceCategory: rateModal.serviceCategory || undefined,
       rate: rateModal.rate,
       isActive: rateModal.isActive,
     };
@@ -486,7 +488,7 @@ const CommissionsTab: React.FC = () => {
     } else {
       await api.post('/settings/commission-rates', payload);
     }
-    setRateModal({ open: false, role: 'DENTIST', type: 'doctor', rate: '20', isActive: true });
+    setRateModal({ open: false, role: 'DENTIST', type: 'doctor', serviceCategory: '', rate: '20', isActive: true });
     queryClient.invalidateQueries({ queryKey: ['commission-rates'] });
   };
 
@@ -548,23 +550,24 @@ const CommissionsTab: React.FC = () => {
       <Card>
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <h3 className="font-semibold text-slate-900">Komisyon Oranları</h3>
-          <Button size="sm" onClick={() => setRateModal({ open: true, role: 'DENTIST', type: 'doctor', rate: '20', isActive: true })}>
+          <Button size="sm" onClick={() => setRateModal({ open: true, role: 'DENTIST', type: 'doctor', serviceCategory: '', rate: '20', isActive: true })}>
             + Yeni Oran
           </Button>
         </div>
         <div className="overflow-x-auto">
-          <Table head={['Rol', 'Tip', 'Oran', 'Durum', 'İşlemler']}>
+          <Table head={['Rol', 'Tip', 'Hizmet / Ürün Kategorisi', 'Oran', 'Durum', 'İşlemler']}>
             {rates?.map((r: any) => (
               <tr key={r.id}>
                 <td className="px-4 py-3 font-medium text-slate-900">{ROLE_LABEL[r.role] || r.role}</td>
                 <td className="px-4 py-3 text-slate-600">{r.type}</td>
+                <td className="px-4 py-3 text-slate-600">{r.serviceCategory || '-'}</td>
                 <td className="px-4 py-3 font-semibold text-slate-900">{r.rate}%</td>
                 <td className="px-4 py-3">
                   <Badge tone={r.isActive ? 'green' : 'slate'}>{r.isActive ? 'Aktif' : 'Pasif'}</Badge>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => setRateModal({ open: true, id: r.id, role: r.role, type: r.type, rate: String(r.rate), isActive: r.isActive })}>
+                    <Button size="sm" variant="secondary" onClick={() => setRateModal({ open: true, id: r.id, role: r.role, type: r.type, serviceCategory: r.serviceCategory || '', rate: String(r.rate), isActive: r.isActive })}>
                       Düzenle
                     </Button>
                     <Button size="sm" variant="danger" onClick={() => deleteRate(r.id)}>
@@ -617,11 +620,11 @@ const CommissionsTab: React.FC = () => {
 
       <Modal
         open={rateModal.open}
-        onClose={() => setRateModal({ open: false, role: 'DENTIST', type: 'doctor', rate: '20', isActive: true })}
+        onClose={() => setRateModal({ open: false, role: 'DENTIST', type: 'doctor', serviceCategory: '', rate: '20', isActive: true })}
         title={rateModal.id ? 'Komisyon Oranı Düzenle' : 'Yeni Komisyon Oranı'}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setRateModal({ open: false, role: 'DENTIST', type: 'doctor', rate: '20', isActive: true })}>
+            <Button variant="secondary" onClick={() => setRateModal({ open: false, role: 'DENTIST', type: 'doctor', serviceCategory: '', rate: '20', isActive: true })}>
               İptal
             </Button>
             <Button onClick={saveRate} disabled={!rateModal.role || !rateModal.type.trim() || !rateModal.rate}>
@@ -642,6 +645,9 @@ const CommissionsTab: React.FC = () => {
           </Field>
           <Field label="Tip">
             <Input value={rateModal.type} onChange={(e) => setRateModal({ ...rateModal, type: e.target.value })} placeholder="Örn: doctor" />
+          </Field>
+          <Field label="Hizmet / Ürün Kategorisi">
+            <Input value={rateModal.serviceCategory} onChange={(e) => setRateModal({ ...rateModal, serviceCategory: e.target.value })} placeholder="Örn: implant, treatment, surgery, product" />
           </Field>
           <Field label="Oran (%)">
             <Input type="number" step="0.01" min="0" value={rateModal.rate} onChange={(e) => setRateModal({ ...rateModal, rate: e.target.value })} />

@@ -308,15 +308,16 @@ model Expense {
 }
 
 model CommissionRate {
-  id           String   @id @default(uuid())
-  role         UserRole
-  type         String   // doctor_treatment, sales_plan, callcenter_lead, banko_invoice, etc.
-  rate         Decimal  // percentage
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+    id           String   @id @default(uuid())
+    role         UserRole
+    type         String   // doctor, sales, callcenter, banko
+    serviceCategory String? // implant, treatment, surgery, product, etc.
+    rate         Decimal  // percentage
+    isActive     Boolean  @default(true)
+    createdAt    DateTime @default(now())
+    updatedAt    DateTime @updatedAt
 
-  @@unique([role, type])
+    @@unique([role, type])
 }
 
 model Commission {

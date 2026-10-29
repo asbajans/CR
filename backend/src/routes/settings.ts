@@ -127,6 +127,7 @@ router.post('/commission-rates', asyncHandler(async (req: AuthRequest, res: Resp
   const data = z.object({
     role: z.enum(['ADMIN', 'DENTIST', 'CALL_CENTER', 'SALES', 'BANKO']),
     type: z.string(),
+    serviceCategory: z.string().optional(),
     rate: z.string(),
     isActive: z.boolean().optional(),
   }).parse(req.body);
@@ -135,6 +136,7 @@ router.post('/commission-rates', asyncHandler(async (req: AuthRequest, res: Resp
     data: {
       role: data.role,
       type: data.type,
+      serviceCategory: data.serviceCategory,
       rate: parseFloat(data.rate),
       isActive: data.isActive ?? true,
     },
@@ -146,6 +148,7 @@ router.patch('/commission-rates/:id', asyncHandler(async (req: Request, res: Res
   const data = z.object({
     role: z.enum(['ADMIN', 'DENTIST', 'CALL_CENTER', 'SALES', 'BANKO']).optional(),
     type: z.string().optional(),
+    serviceCategory: z.string().optional(),
     rate: z.string().optional(),
     isActive: z.boolean().optional(),
   }).parse(req.body);
@@ -155,6 +158,7 @@ router.patch('/commission-rates/:id', asyncHandler(async (req: Request, res: Res
     data: {
       role: data.role,
       type: data.type,
+      serviceCategory: data.serviceCategory,
       rate: data.rate ? parseFloat(data.rate) : undefined,
       isActive: data.isActive,
     },
