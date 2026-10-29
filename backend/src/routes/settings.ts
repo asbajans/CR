@@ -49,20 +49,18 @@ router.patch('/expense-categories/:id', asyncHandler(async (req: Request, res: R
 
 // Expenses
 router.get('/expenses', asyncHandler(async (req: Request, res: Response) => {
-  const where = {};
+  const where: Record<string, unknown> = {};
   if (req.query.categoryId) {
     where.categoryId = req.query.categoryId as string;
   }
-  if (req.query.from) {
-    where.expenseDate = {
-      gte: new Date(req.query.from as string),
-    };
-  }
-  if (req.query.to) {
-    where.expenseDate = {
-      ...where.expenseDate,
-      lte: new Date(req.query.to as string),
-    };
+  if (req.query.from || req.query.to) {
+    where.expenseDate = {};
+    if (req.query.from) {
+      (where.expenseDate as Record<string, unknown>).gte = new Date(req.query.from as string);
+    }
+    if (req.query.to) {
+      (where.expenseDate as Record<string, unknown>).lte = new Date(req.query.to as string);
+    }
   }
 
   const expenses = await prisma.expense.findMany({
@@ -162,8 +160,8 @@ router.get('/commissions', asyncHandler(async (req: Request, res: Response) => {
 
   if (from || to) {
     where.periodStart = {};
-    if (from) where.periodStart.gte = from;
-    if (to) where.periodStart.lte = to;
+    if (from) (where.periodStart as Record<string, unknown>).gte = from;
+    if (to) (where.periodStart as Record<string, unknown>).lte = to;
   }
 
   const commissions = await prisma.commission.findMany({

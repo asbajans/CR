@@ -71,6 +71,7 @@ model User {
   appointments        Appointment[]   @relation("AppointmentStaff")
   createdAppointments Appointment[]   @relation("AppointmentCreator")
   createdPlans        TreatmentPlan[] @relation("PlanCreator")
+  commissions         Commission[]    @relation("UserCommission")
 }
 
 model Patient {
@@ -92,6 +93,8 @@ model Patient {
   treatmentPlans TreatmentPlan[]
   leads          Lead[]
   visits         PatientVisit[]
+  doctorCommissions Commission[] @relation("DoctorCommissionPatient")
+  salesCommissions  Commission[] @relation("SalesCommissionPatient")
 }
 
 model MedicalRecord {
@@ -153,6 +156,7 @@ model Lead {
 
   appointments Appointment[]
   visits       PatientVisit[]
+  commissions  Commission[]
 
   @@index([status])
   @@index([source])
@@ -218,6 +222,8 @@ model Invoice {
   dueDate     DateTime?
   paidAt      DateTime?
   createdAt   DateTime @default(now())
+
+  bankoCommissions Commission[]
 }
 
 model PatientVisit {
@@ -254,4 +260,74 @@ model MessageLog {
 
   @@index([patientId])
   @@index([channel])
+}
+
+model ExpenseCategory {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  expenses    Expense[]
+}
+
+model Expense {
+  id              String        @id @default(uuid())
+  categoryId      String
+  category        ExpenseCategory @relation(fields: [categoryId], references: [id])
+  name            String
+  amount          Decimal
+  expenseDate     DateTime
+  description     String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([categoryId])
+  @@index([expenseDate])
+}
+
+model CommissionRate {
+  id           String   @id @default(uuid())
+  role         UserRole
+  type         String   // doctor_treatment, sales_plan, callcenter_lead, banko_invoice, etc.
+  rate         Decimal  // percentage
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([role, type])
+}
+
+model Commission {
+  id                 String   @id @default(uuid())
+  userId             String
+  user               User     @relation("UserCommission", fields: [userId], references: [id])
+  type               String   // doctor, sales, callcenter, banko
+  periodStart        DateTime
+  periodEnd          DateTime
+  totalAmount        Decimal
+  commissionRate     Decimal
+  calculatedAmount   Decimal
+  status             String   // pending, calculated, paid
+  calculatedAt       DateTime?
+  paidAt             DateTime?
+  paymentReference   String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  doctorPatientId    String?
+  doctorPatient      Patient? @relation("DoctorCommissionPatient", fields: [doctorPatientId], references: [id])
+
+  salesPatientId     String?
+  salesPatient       Patient? @relation("SalesCommissionPatient", fields: [salesPatientId], references: [id])
+
+  callcenterLeadId   String?
+  callcenterLead     Lead?    @relation(fields: [callcenterLeadId], references: [id])
+
+  bankoInvoiceId     String?
+  bankoInvoice       Invoice? @relation(fields: [bankoInvoiceId], references: [id])
+
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@index([periodStart, periodEnd])
 }

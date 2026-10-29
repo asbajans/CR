@@ -16,6 +16,7 @@ import webhookRoutes from './routes/webhooks';
 import dashboardRoutes from './routes/dashboard';
 import visitRoutes from './routes/visits';
 import reportRoutes from './routes/reports';
+import settingsRoutes from './routes/settings';
 
 dotenv.config();
 
@@ -42,6 +43,7 @@ app.use('/api/webhooks', webhookRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/visits', visitRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/settings', settingsRoutes);
 
 app.use(errorHandler);
 
