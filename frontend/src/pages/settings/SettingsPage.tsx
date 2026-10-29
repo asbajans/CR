@@ -291,6 +291,11 @@ const CommissionsTab: React.FC = () => {
     status: 'pending',
   });
 
+  const { data: serviceCategories = [] } = useQuery({
+    queryKey: ['service-categories'],
+    queryFn: async () => (await api.get('/settings/service-categories')).data.data as any[],
+  });
+
   const { data: rates } = useQuery({
     queryKey: ['commission-rates'],
     queryFn: async () => (await api.get('/settings/commission-rates')).data.data as any[],
@@ -479,7 +484,12 @@ const CommissionsTab: React.FC = () => {
             <Input value={rateModal.type} onChange={(e) => setRateModal({ ...rateModal, type: e.target.value })} placeholder="Örn: doctor" />
           </Field>
           <Field label="Hizmet / Ürün Kategorisi">
-            <Input value={rateModal.serviceCategory} onChange={(e) => setRateModal({ ...rateModal, serviceCategory: e.target.value })} placeholder="Örn: implant, treatment, surgery, product" />
+            <Select value={rateModal.serviceCategory} onChange={(e) => setRateModal({ ...rateModal, serviceCategory: e.target.value })}>
+              <option value="">Genel</option>
+              {(serviceCategories || []).map((c: any) => (
+                <option key={c.id} value={c.name}>{c.name}</option>
+              ))}
+            </Select>
           </Field>
           <Field label="Oran (%)">
             <Input type="number" step="0.01" min="0" value={rateModal.rate} onChange={(e) => setRateModal({ ...rateModal, rate: e.target.value })} />

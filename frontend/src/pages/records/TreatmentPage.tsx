@@ -26,7 +26,7 @@ export const TreatmentPage: React.FC = () => {
   const [items, setItems] = useState<ItemForm[]>([newItem()]);
   const [discount, setDiscount] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
-  const [serviceCategoryFilter, setServiceCategoryFilter] = useState('');
+  const [serviceQuery, setServiceQuery] = useState('');
 
   const canManage = ['ADMIN', 'SALES', 'DENTIST'].includes(user?.role || '');
 
@@ -45,7 +45,11 @@ export const TreatmentPage: React.FC = () => {
     queryFn: async () => (await api.get('/settings/services')).data.data as any[],
   });
 
-  const filteredServices = (services || []).filter((s: any) => !serviceCategoryFilter || s.category === serviceCategoryFilter);
+  const filteredServices = (services || []).filter((s: any) => {
+    const q = (serviceQuery || '').trim().toLowerCase();
+    if (!q) return true;
+    return String(s.category || '').toLowerCase().includes(q) || String(s.name || '').toLowerCase().includes(q);
+  });
 
   const { data: allUsers = [] } = useQuery({
     queryKey: ['users'],
@@ -98,6 +102,7 @@ export const TreatmentPage: React.FC = () => {
       setItems([newItem()]);
       setDiscount('');
       setPaymentNote('');
+      setServiceQuery('');
     },
     onError: (err) => alert(apiError(err)),
   });
@@ -125,7 +130,7 @@ export const TreatmentPage: React.FC = () => {
       <PageHeader
         title="Tedavi Planları"
         subtitle="Tedavi kalemleri, fiyatlar, onay ve uygulama durumu"
-        action={canManage ? <Button onClick={() => setCreateOpen(true)}>+ Yeni Tedavi Planı</Button> : undefined}
+        action={canManage ? <Button onClick={() => { setServiceQuery(''); setCreateOpen(true); }}>+ Yeni Tedavi Planı</Button> : undefined}
       />
 
       <Card>
@@ -232,14 +237,7 @@ export const TreatmentPage: React.FC = () => {
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <p className="text-sm font-medium text-slate-700">Tedavi Kalemleri</p>
-            <Select value={serviceCategoryFilter} onChange={(e) => setServiceCategoryFilter(e.target.value)} className="w-64">
-              <option value="">Tüm Kategoriler</option>
-              {services.map((s: any) => (
-                <option key={s.category} value={s.category}>
-                  {s.category}
-                </option>
-              ))}
-            </Select>
+            <Input placeholder="Hizmet Ara" value={serviceQuery} onChange={(e) => setServiceQuery(e.target.value)} className="w-64" />
           </div>
           {items.map((item, index) => (
             <div key={index} className="grid grid-cols-12 gap-2 items-end">
