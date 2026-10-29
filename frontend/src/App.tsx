@@ -17,36 +17,36 @@ const App = () => {
   const location = useLocation();
 
   const isAuthenticated = !!token && !!user;
-  const allowedRoute = isAuthenticated ? ROLE_DASHBOARD[user.role] : ROUTES.LOGIN;
 
-  if (!isAuthenticated && location.pathname !== ROUTES.LOGIN) {
-    return <Navigate to={ROUTES.LOGIN} replace />;
+  if (!isAuthenticated) {
+    return (
+      <BrowserRouter>
+        <Login />
+      </BrowserRouter>
+    );
   }
+
+  const allowedRoute = ROLE_DASHBOARD[user.role] || ROUTES.DASHBOARD;
 
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-gray-50">
-        {isAuthenticated && (
-          <>
-            <TopBar user={user!} />
-            <div className="flex">
-              <Sidebar user={user!} />
-              <main className="flex-1 p-6">
-                <Routes>
-                  <Route path={ROUTES.LOGIN} element={<Login />} />
-                  <Route path={ROUTES.DASHBOARD} element={<Dashboard />} />
-                  <Route path={ROUTES.CALL_CENTER} element={<CallCenter />} />
-                  <Route path={ROUTES.SALES} element={<Sales />} />
-                  <Route path={ROUTES.DENTIST} element={<Dentist />} />
-                  <Route path={ROUTES.BANKO} element={<Banko />} />
-                  <Route path={ROUTES.ADMIN} element={<Admin />} />
-                  <Route path="*" element={<Navigate to={allowedRoute} replace />} />
-                </Routes>
-              </main>
-            </div>
-          </>
-        )}
-        {!isAuthenticated && <Login />}
+        <TopBar user={user} />
+        <div className="flex">
+          <Sidebar user={user} />
+          <main className="flex-1 p-6">
+            <Routes>
+              <Route path={ROUTES.LOGIN} element={<Login />} />
+              <Route path={ROUTES.DASHBOARD} element={<Dashboard />} />
+              <Route path={ROUTES.CALL_CENTER} element={<CallCenter />} />
+              <Route path={ROUTES.SALES} element={<Sales />} />
+              <Route path={ROUTES.DENTIST} element={<Dentist />} />
+              <Route path={ROUTES.BANKO} element={<Banko />} />
+              <Route path={ROUTES.ADMIN} element={<Admin />} />
+              <Route path="*" element={<Navigate to={allowedRoute} replace />} />
+            </Routes>
+          </main>
+        </div>
       </div>
     </BrowserRouter>
   );
