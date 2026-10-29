@@ -169,6 +169,58 @@ router.delete('/commission-rates/:id', asyncHandler(async (req: Request, res: Re
   res.json({ success: true, data: { deleted: true } });
 }));
 
+// Services / Products Management
+const serviceSchema = z.object({
+  category: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  price: z.string(),
+  isActive: z.boolean().optional(),
+});
+
+router.get('/services', asyncHandler(async (_req: Request, res: Response) => {
+  const services = await prisma.service.findMany({
+    orderBy: [{ category: 'asc' }, { name: 'asc' }],
+  });
+  res.json({ success: true, data: services });
+}));
+
+router.post('/services', asyncHandler(async (req: AuthRequest, res: Response) => {
+  const data = serviceSchema.parse(req.body);
+  const service = await prisma.service.create({
+    data: {
+      category: data.category,
+      name: data.name,
+      description: data.description,
+      price: parseFloat(data.price),
+      isActive: data.isActive ?? true,
+    },
+  });
+  res.status(201).json({ success: true, data: service });
+}));
+
+router.patch('/services/:id', asyncHandler(async (req: Request, res: Response) => {
+  const data = serviceSchema.partial().parse(req.body);
+  const service = await prisma.service.update({
+    where: { id: req.params.id },
+    data: {
+      category: data.category,
+      name: data.name,
+      description: data.description,
+      price: data.price ? parseFloat(data.price) : undefined,
+      isActive: data.isActive,
+    },
+  });
+  res.json({ success: true, data: service });
+}));
+
+router.delete('/services/:id', asyncHandler(async (req: Request, res: Response) => {
+  await prisma.service.delete({
+    where: { id: req.params.id },
+  });
+  res.json({ success: true, data: { deleted: true } });
+}));
+
 // Commission Management
 router.get('/commissions', asyncHandler(async (req: Request, res: Response) => {
   const where: Record<string, unknown> = {};

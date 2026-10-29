@@ -8,6 +8,7 @@ const router = Router();
 
 const planItemSchema = z.object({
   toothNo: z.string().optional(),
+  serviceId: z.string().optional(),
   treatment: z.string().min(1),
   price: z.string(),
   quantity: z.number().min(1).default(1),
@@ -16,6 +17,7 @@ const planItemSchema = z.object({
 
 const treatmentPlanSchema = z.object({
   patientId: z.string().uuid(),
+  doctorId: z.string().optional(),
   totalPrice: z.string(),
   discount: z.string().optional(),
   paymentPlan: z.record(z.any()).optional(),
@@ -56,10 +58,11 @@ router.get(
     if (req.query.channel) where.channel = req.query.channel as string;
     if (req.query.campaignId) where.campaignId = req.query.campaignId as string;
     if (req.query.createdById) where.createdById = req.query.createdById as string;
+    if (req.query.doctorId) where.doctorId = req.query.doctorId as string;
 
     const plans = await prisma.treatmentPlan.findMany({
       where,
-      include: includeRelations,
+      include: { ...includeRelations, doctor: { select: { id: true, name: true, role: true } } },
       orderBy: { createdAt: 'desc' },
     });
     res.json({ success: true, data: plans });
@@ -71,7 +74,7 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const plans = await prisma.treatmentPlan.findMany({
       where: { patientId: req.params.patientId },
-      include: includeRelations,
+      include: { ...includeRelations, doctor: { select: { id: true, name: true, role: true } } },
       orderBy: { createdAt: 'desc' },
     });
     res.json({ success: true, data: plans });
@@ -80,13 +83,21 @@ router.get(
 
 router.get(
   '/:id',
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req: AuthRequest, res: Response) => {
     const plan = await prisma.treatmentPlan.findUnique({
       where: { id: req.params.id },
-      include: includeRelations,
+      include: { ...includeRelations, doctor: { select: { id: true, name: true, role: true } } },
     });
     if (!plan) {
       return res.status(404).json({ success: false, message: 'Tedavi planı bulunamadı' });
+    }
+    // Doctors can only access plans assigned to them (or created by them)
+    if (req.user!.role === 'DENTIST') {
+      const isAssigned = plan.doctorId && plan.doctorId === req.user!.id;
+      const isCreator = plan.createdById === req.user!.id;
+      if (!isAssigned && !isCreator) {
+        return res.status(403).json({ success: false, message: 'Bu tedavi planına erişim izniniz yok' });
+      }
     }
     res.json({ success: true, data: plan });
   })
@@ -102,6 +113,7 @@ router.post(
       data: {
         patientId: data.patientId,
         createdById: req.user!.id,
+        doctorId: data.doctorId || null,
         totalPrice: parseFloat(data.totalPrice),
         discount: data.discount ? parseFloat(data.discount) : 0,
         paymentPlan: data.paymentPlan ?? undefined,
@@ -110,6 +122,7 @@ router.post(
         items: {
           create: data.items.map((item) => ({
             toothNo: item.toothNo,
+            serviceId: item.serviceId || undefined,
             treatment: item.treatment,
             price: parseFloat(item.price),
             quantity: item.quantity,
@@ -117,7 +130,7 @@ router.post(
           })),
         },
       },
-      include: includeRelations,
+      include: { ...includeRelations, doctor: { select: { id: true, name: true, role: true } } },
     });
     res.status(201).json({ success: true, data: plan });
   })

@@ -105,6 +105,8 @@ router.get(
 
     if (role === 'DENTIST') {
       where.userId = req.user!.id;
+    } else if (role === 'SALES') {
+      where.userId = req.user!.id;
     }
     if (req.query.status) where.status = req.query.status as string;
     if (req.query.type) where.type = req.query.type as string;

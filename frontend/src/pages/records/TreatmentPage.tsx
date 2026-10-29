@@ -12,9 +12,9 @@ import {
   statusTone,
 } from '../../lib/format';
 
-type ItemForm = { toothNo: string; treatment: string; price: string; quantity: number };
+type ItemForm = { toothNo: string; serviceId: string; treatment: string; price: string; quantity: number };
 
-const newItem = (): ItemForm => ({ toothNo: '', treatment: '', price: '', quantity: 1 });
+const newItem = (): ItemForm => ({ toothNo: '', serviceId: '', treatment: '', price: '', quantity: 1 });
 
 export const TreatmentPage: React.FC = () => {
   const { user } = useAppStore();
@@ -22,6 +22,7 @@ export const TreatmentPage: React.FC = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [patientId, setPatientId] = useState('');
+  const [doctorId, setDoctorId] = useState('');
   const [items, setItems] = useState<ItemForm[]>([newItem()]);
   const [discount, setDiscount] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
@@ -37,6 +38,18 @@ export const TreatmentPage: React.FC = () => {
     queryKey: ['patients'],
     queryFn: async () => (await api.get('/patients')).data.data as any[],
   });
+
+  const { data: services = [] } = useQuery({
+    queryKey: ['services'],
+    queryFn: async () => (await api.get('/settings/services')).data.data as any[],
+  });
+
+  const { data: allUsers = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => (await api.get('/users')).data.data as any[],
+  });
+
+  const doctors = (allUsers || []).filter((u: any) => u.role === 'DENTIST');
 
   const { data: detail } = useQuery({
     queryKey: ['treatment-plan', detailId],
@@ -60,11 +73,13 @@ export const TreatmentPage: React.FC = () => {
     mutationFn: async () => {
       await api.post('/treatment', {
         patientId,
+        doctorId: doctorId || undefined,
         totalPrice: String(total),
         discount: String(Number(discount) || 0),
         paymentPlan: paymentNote ? { note: paymentNote } : undefined,
         items: items.map((item, index) => ({
           toothNo: item.toothNo || undefined,
+          serviceId: item.serviceId || undefined,
           treatment: item.treatment,
           price: item.price,
           quantity: item.quantity,
@@ -76,6 +91,7 @@ export const TreatmentPage: React.FC = () => {
       invalidate();
       setCreateOpen(false);
       setPatientId('');
+      setDoctorId('');
       setItems([newItem()]);
       setDiscount('');
       setPaymentNote('');
@@ -180,23 +196,35 @@ export const TreatmentPage: React.FC = () => {
             </Button>
             <Button
               onClick={() => createMutation.mutate()}
-              disabled={!patientId || validItems.length === 0 || createMutation.isPending}
+              disabled={!patientId || !doctorId || validItems.length === 0 || createMutation.isPending}
             >
               {createMutation.isPending ? 'Kaydediliyor...' : 'Planı Kaydet'}
             </Button>
           </>
         }
       >
-        <Field label="Hasta *">
-          <Select value={patientId} onChange={(e) => setPatientId(e.target.value)}>
-            <option value="">Hasta seçin</option>
-            {patients.map((p: any) => (
-              <option key={p.id} value={p.id}>
-                {p.hastaNo} - {p.name} {p.surname}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Hasta *">
+            <Select value={patientId} onChange={(e) => setPatientId(e.target.value)}>
+              <option value="">Hasta seçin</option>
+              {patients.map((p: any) => (
+                <option key={p.id} value={p.id}>
+                  {p.hastaNo} - {p.name} {p.surname}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Doktor *">
+            <Select value={doctorId} onChange={(e) => setDoctorId(e.target.value)}>
+              <option value="">Doktor seçin</option>
+              {doctors.map((d: any) => (
+                <option key={d.id} value={d.id}>
+                  {d.name} ({d.role})
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
 
         <div className="space-y-2">
           <p className="text-sm font-medium text-slate-700">Tedavi Kalemleri</p>
@@ -213,16 +241,28 @@ export const TreatmentPage: React.FC = () => {
                   }}
                 />
               </div>
-              <div className="col-span-4">
-                <Input
-                  placeholder="Tedavi (örn. İmplant)"
-                  value={item.treatment}
+              <div className="col-span-3">
+                <Select
+                  value={item.serviceId}
                   onChange={(e) => {
                     const next = [...items];
-                    next[index] = { ...item, treatment: e.target.value };
+                    const service = services.find((s: any) => s.id === e.target.value);
+                    next[index] = {
+                      ...item,
+                      serviceId: e.target.value,
+                      treatment: service ? `${service.category} - ${service.name}` : item.treatment,
+                      price: service ? String(service.price) : item.price,
+                    };
                     setItems(next);
                   }}
-                />
+                >
+                  <option value="">Hizmet Seçin</option>
+                  {services.map((s: any) => (
+                    <option key={s.id} value={s.id}>
+                      {s.category} - {s.name} ({String(s.price)}₺)
+                    </option>
+                  ))}
+                </Select>
               </div>
               <div className="col-span-2">
                 <Input
@@ -249,7 +289,7 @@ export const TreatmentPage: React.FC = () => {
                   }}
                 />
               </div>
-              <div className="col-span-2">
+              <div className="col-span-1">
                 <Button
                   variant="danger"
                   size="sm"

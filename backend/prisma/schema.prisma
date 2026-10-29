@@ -60,18 +60,19 @@ enum VisitStatus {
 }
 
 model User {
-  id        String    @id @default(uuid())
-  name      String
-  email     String    @unique
-  password  String
-  role      UserRole
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+    id        String    @id @default(uuid())
+    name      String
+    email     String    @unique
+    password  String
+    role      UserRole
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @updatedAt
 
-  appointments        Appointment[]   @relation("AppointmentStaff")
-  createdAppointments Appointment[]   @relation("AppointmentCreator")
-  createdPlans        TreatmentPlan[] @relation("PlanCreator")
-  commissions         Commission[]    @relation("UserCommission")
+    appointments        Appointment[]   @relation("AppointmentStaff")
+    createdAppointments Appointment[]   @relation("AppointmentCreator")
+    createdPlans        TreatmentPlan[] @relation("PlanCreator")
+    doctorPlans         TreatmentPlan[] @relation("PlanDoctor")
+    commissions         Commission[]    @relation("UserCommission")
 }
 
 model Patient {
@@ -178,38 +179,59 @@ model Campaign {
   plans        TreatmentPlan[]
 }
 
-model TreatmentPlan {
-  id            String             @id @default(uuid())
-  patientId     String
-  patient       Patient            @relation(fields: [patientId], references: [id])
-  createdById   String?
-  createdBy     User?              @relation("PlanCreator", fields: [createdById], references: [id])
-  status        TreatmentPlanStatus @default(DRAFT)
-  totalPrice    Decimal
-  discount      Decimal            @default(0)
-  paymentPlan   Json?
-  channel       String?
-  campaignId    String?
-  campaign      Campaign?          @relation(fields: [campaignId], references: [id])
-  items         TreatmentItem[]
-  invoices      Invoice[]
-  approvedAt    DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+model Service {
+    id          String   @id @default(uuid())
+    category    String   // implant, treatment, surgery, product, etc.
+    name        String
+    description String?
+    price       Decimal
+    isActive     Boolean  @default(true)
+    createdAt    DateTime @default(now())
+    updatedAt    DateTime @updatedAt
 
-  @@index([createdById])
-  @@index([channel])
+    items        TreatmentItem[]
+
+    @@unique([category, name])
+    @@index([category])
+}
+
+model TreatmentPlan {
+    id            String             @id @default(uuid())
+    patientId     String
+    patient       Patient            @relation(fields: [patientId], references: [id])
+    createdById   String?
+    createdBy     User?              @relation("PlanCreator", fields: [createdById], references: [id])
+    doctorId      String?
+    doctor        User?              @relation("PlanDoctor", fields: [doctorId], references: [id])
+    status        TreatmentPlanStatus @default(DRAFT)
+    totalPrice    Decimal
+    discount      Decimal            @default(0)
+    paymentPlan   Json?
+    channel       String?
+    campaignId    String?
+    campaign      Campaign?          @relation(fields: [campaignId], references: [id])
+    items         TreatmentItem[]
+    invoices      Invoice[]
+    approvedAt    DateTime?
+    createdAt     DateTime          @default(now())
+    updatedAt     DateTime          @updatedAt
+
+    @@index([createdById])
+    @@index([doctorId])
+    @@index([channel])
 }
 
 model TreatmentItem {
-  id          String   @id @default(uuid())
-  planId      String
-  plan        TreatmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  toothNo     String?
-  treatment   String
-  price       Decimal
-  quantity    Int      @default(1)
-  stepOrder   Int      @default(1)
+    id          String   @id @default(uuid())
+    planId      String
+    plan        TreatmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+    toothNo     String?
+    serviceId   String?
+    service      Service?  @relation(fields: [serviceId], references: [id])
+    treatment   String
+    price       Decimal
+    quantity    Int      @default(1)
+    stepOrder   Int      @default(1)
 }
 
 model Invoice {

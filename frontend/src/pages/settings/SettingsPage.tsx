@@ -4,7 +4,7 @@ import { api } from '../../lib/api';
 import { Badge, Button, Card, Field, Input, Modal, PageHeader, Select, Table, Textarea } from '../../components/ui';
 import { ROLE_LABEL, dateOnly, dateTime, fromLocalInput, money, toLocalInput } from '../../lib/format';
 
-type Tab = 'expenses' | 'commissions';
+type Tab = 'expenses' | 'services' | 'commissions';
 
 export const SettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('expenses');
@@ -13,7 +13,7 @@ export const SettingsPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Ayarlar"
-        subtitle="Masraf yönetimi, gider takibi ve komisyon oranları"
+        subtitle="Hizmet / ürün yönetimi, masraf takibi ve komisyon oranları"
       />
 
       <div className="border-b border-slate-200 bg-white rounded-t-xl">
@@ -34,11 +34,19 @@ export const SettingsPage: React.FC = () => {
           >
             Komisyonlar
           </button>
+          <button
+            onClick={() => setActiveTab('services')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition ${
+              activeTab === 'services' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            Hizmetler / Ürünler
+          </button>
         </nav>
       </div>
 
       <div className="px-6 pb-6">
-        {activeTab === 'expenses' ? <ExpensesTab /> : <CommissionsTab />}
+        {activeTab === 'expenses' ? <ExpensesTab /> : activeTab === 'services' ? <ServicesTab /> : <CommissionsTab />}
       </div>
     </div>
   );
@@ -278,6 +286,142 @@ const ExpensesTab: React.FC = () => {
         <Field label="Gider Adı">
           <Input value={expenseModal.name} onChange={(e) => setExpenseModal({ ...expenseModal, name: e.target.value })} placeholder="Örn: Ziyaret gideri" />
         </Field>
+      </Modal>
+    </div>
+  );
+};
+
+const ServicesTab: React.FC = () => {
+  const queryClient = useQueryClient();
+  const [serviceModal, setServiceModal] = useState<{ open: boolean; id?: string; category: string; name: string; description: string; price: string; isActive: boolean }>({
+    open: false,
+    category: '',
+    name: '',
+    description: '',
+    price: '',
+    isActive: true,
+  });
+
+  const { data: services } = useQuery({
+    queryKey: ['services'],
+    queryFn: async () => (await api.get('/settings/services')).data.data as any[],
+  });
+
+  const saveService = async () => {
+    if (!serviceModal.category.trim() || !serviceModal.name.trim() || !serviceModal.price) return;
+    const payload = {
+      category: serviceModal.category.trim(),
+      name: serviceModal.name.trim(),
+      description: serviceModal.description.trim() || undefined,
+      price: serviceModal.price,
+      isActive: serviceModal.isActive,
+    };
+    if (serviceModal.id) {
+      await api.patch(`/settings/services/${serviceModal.id}`, payload);
+    } else {
+      await api.post('/settings/services', payload);
+    }
+    setServiceModal({ open: false, category: '', name: '', description: '', price: '', isActive: true });
+    queryClient.invalidateQueries({ queryKey: ['services'] });
+  };
+
+  const deleteService = async (id: string) => {
+    if (!confirm('Bu hizmeti ürünü silmek istediğinizden emin misiniz?')) return;
+    await api.delete(`/settings/services/${id}`);
+    queryClient.invalidateQueries({ queryKey: ['services'] });
+  };
+
+  const categories = [...new Set((services || []).map((s: any) => s.category))];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-slate-900">Hizmet / Ürün Yönetimi</h2>
+        <Button size="sm" onClick={() => setServiceModal({ open: true, category: '', name: '', description: '', price: '', isActive: true })}>
+          + Yeni Hizmet / Ürün
+        </Button>
+      </div>
+
+      <Card>
+        <div className="px-6 py-4 border-b border-slate-200">
+          <h3 className="font-semibold text-slate-900">Hizmetler ve Ürünler</h3>
+          <p className="text-xs text-slate-500 mt-1">Kategori bazlı hizmet ve ürün fiyatları tanımlanır. Tedavi planlarında seçilebilir.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <Table head={['Kategori', 'Hizmet / Ürün', 'Açıklama', 'Fiyat', 'Durum', 'İşlemler']}>
+            {services?.map((s: any) => (
+              <tr key={s.id}>
+                <td className="px-4 py-3 font-medium text-slate-900">{s.category}</td>
+                <td className="px-4 py-3 font-medium text-slate-900">{s.name}</td>
+                <td className="px-4 py-3 text-slate-600">{s.description || '-'}</td>
+                <td className="px-4 py-3 font-semibold text-slate-900">{money(s.price)}</td>
+                <td className="px-4 py-3">
+                  <Badge tone={s.isActive ? 'green' : 'slate'}>{s.isActive ? 'Aktif' : 'Pasif'}</Badge>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="secondary" onClick={() => setServiceModal({ open: true, id: s.id, category: s.category, name: s.name, description: s.description || '', price: String(s.price), isActive: s.isActive })}>
+                      Düzenle
+                    </Button>
+                    <Button size="sm" variant="danger" onClick={() => deleteService(s.id)}>
+                      Sil
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </Table>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="px-6 py-4 border-b border-slate-200">
+          <h3 className="font-semibold text-slate-900">Kategori Özeti</h3>
+        </div>
+        <div className="px-6 py-4">
+          <div className="flex flex-wrap gap-2">
+            {categories?.map((cat: any) => (
+              <Badge key={cat} tone="blue">{cat}</Badge>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      <Modal
+        open={serviceModal.open}
+        onClose={() => setServiceModal({ open: false, category: '', name: '', description: '', price: '', isActive: true })}
+        title={serviceModal.id ? 'Hizmet / Ürün Düzenle' : 'Yeni Hizmet / Ürün'}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setServiceModal({ open: false, category: '', name: '', description: '', price: '', isActive: true })}>
+              İptal
+            </Button>
+            <Button onClick={saveService} disabled={!serviceModal.category.trim() || !serviceModal.name.trim() || !serviceModal.price}>
+              Kaydet
+            </Button>
+          </>
+        }
+      >
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Kategori *">
+            <Input value={serviceModal.category} onChange={(e) => setServiceModal({ ...serviceModal, category: e.target.value })} placeholder="Örn: implant, tedavi, cerrahi, ürün" />
+          </Field>
+          <Field label="Hizmet / Ürün Adı *">
+            <Input value={serviceModal.name} onChange={(e) => setServiceModal({ ...serviceModal, name: e.target.value })} placeholder="Örn: Implant, Ortodonti Tedavisi" />
+          </Field>
+          <Field label="Fiyat (₺) *">
+            <Input type="number" step="0.01" min="0" value={serviceModal.price} onChange={(e) => setServiceModal({ ...serviceModal, price: e.target.value })} />
+          </Field>
+          <Field label="Açıklama">
+            <Input value={serviceModal.description} onChange={(e) => setServiceModal({ ...serviceModal, description: e.target.value })} />
+          </Field>
+          <Field label="Aktif">
+            <Select value={serviceModal.isActive ? 'true' : 'false'} onChange={(e) => setServiceModal({ ...serviceModal, isActive: e.target.value === 'true' })}>
+              <option value="true">Aktif</option>
+              <option value="false">Pasif</option>
+            </Select>
+          </Field>
+        </div>
       </Modal>
     </div>
   );
