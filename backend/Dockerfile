@@ -2,6 +2,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+ENV DATABASE_URL="postgresql://crdent:crdent_dev_password@db:5432/crdent?schema=public"
+ENV NODE_ENV="production"
+
 COPY package*.json ./
 RUN npm install
 
@@ -10,8 +13,8 @@ RUN npx prisma generate
 
 COPY . .
 
-RUN npm run build
+RUN npx tsc
 
 EXPOSE 3001
 
-CMD ["npm", "run", "start:prod"]
+CMD ["node", "dist/src/index.js"]
