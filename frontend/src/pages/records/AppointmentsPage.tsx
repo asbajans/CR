@@ -50,6 +50,8 @@ export const AppointmentsPage: React.FC = () => {
   const [type, setType] = useState('');
   const [scope, setScope] = useState('');
   const [channel, setChannel] = useState('');
+  const [date, setDate] = useState(() => toLocalInput(new Date()));
+  const [view, setView] = useState<'list' | 'slots'>('slots');
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
   const [reschedule, setReschedule] = useState<any>(null);
@@ -99,12 +101,36 @@ export const AppointmentsPage: React.FC = () => {
     [staff, form.type]
   );
 
+  const visibleAppointments = useMemo(() => {
+    const base = date ? appointments.filter((a) => String(a.appointmentDate || '').slice(0, 10) === date) : appointments;
+    if (scope === 'today') return base.filter((a) => isToday(a.appointmentDate));
+    if (scope === 'upcoming') return base.filter((a) => new Date(a.appointmentDate).getTime() > Date.now());
+    if (scope === 'past') return base.filter((a) => new Date(a.appointmentDate).getTime() < Date.now());
+    return base;
+  }, [appointments, date, scope]);
+
   const summary = useMemo(() => {
-    const todays = appointments.filter((a) => isToday(a.appointmentDate)).length;
-    const pending = appointments.filter((a) => a.status === 'PENDING').length;
-    const leadBookings = appointments.filter((a) => a.leadId).length;
+    const todays = visibleAppointments.filter((a) => isToday(a.appointmentDate)).length;
+    const pending = visibleAppointments.filter((a) => a.status === 'PENDING').length;
+    const leadBookings = visibleAppointments.filter((a) => a.leadId).length;
     return { todays, pending, leadBookings };
-  }, [appointments]);
+  }, [visibleAppointments]);
+
+  const slotGroups = useMemo(() => {
+    const groups = new Map<string, any[]>();
+    for (const a of visibleAppointments) {
+      const key = a.user?.id || a.userId || 'unknown';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(a);
+    }
+    return Array.from(groups.entries())
+      .map(([key, list]) => ({
+        userId: key,
+        user: list[0].user || list[0].userId,
+        appointments: list.sort((x: any, y: any) => new Date(x.appointmentDate).getTime() - new Date(y.appointmentDate).getTime()),
+      }))
+      .filter((g) => g.appointments.length > 0);
+  }, [visibleAppointments]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['appointments'] });
@@ -162,6 +188,68 @@ export const AppointmentsPage: React.FC = () => {
     onError: (err) => alert(apiError(err)),
   });
 
+  const renderAppointmentRow = (a: any) => {
+    const person = a.patient || a.lead;
+    return (
+      <tr key={a.id} className="hover:bg-slate-50">
+        <td className="px-4 py-3 font-mono text-xs text-slate-500">{a.randevuNo}</td>
+        <td className="px-4 py-3">
+          <p className="font-semibold text-slate-900">
+            {person?.name} {person?.surname || ''}
+          </p>
+          <p className="text-xs text-slate-400">
+            {a.patient ? a.patient.hastaNo : 'Lead hasta kayit kaydı yok'} {person?.phone}
+          </p>
+        </td>
+        <td className="px-4 py-3 whitespace-nowrap">{dateTime(a.appointmentDate)}</td>
+        <td className="px-4 py-3">
+          <Badge tone={statusTone(a.type)}>{APPT_TYPE_LABEL[a.type]}</Badge>
+        </td>
+        <td className="px-4 py-3">
+          <p className="text-slate-700">{a.channel || 'Bilinmiyor'}</p>
+          <p className="text-xs text-slate-400">{a.campaign?.name || '-'}</p>
+        </td>
+        <td className="px-4 py-3 text-slate-600">{a.user?.name || '-'}</td>
+        <td className="px-4 py-3">
+          <p className="text-slate-700">{a.createdBy?.name || '-'}</p>
+          <p className="text-xs text-slate-400">{a.createdBy ? ROLE_LABEL[a.createdBy.role] : ''}</p>
+        </td>
+        <td className="px-4 py-3">
+          <Select value={a.status} onChange={(e) => statusMutation.mutate({ id: a.id, status: e.target.value })} className="text-xs py-1 max-w-[140px]">
+            {Object.entries(APPT_STATUS_LABEL).map(([key, label]) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+          </Select>
+        </td>
+        <td className="px-4 py-3">
+          {a.visit ? (
+            <div>
+              <p className="font-mono text-xs text-slate-600">{a.visit.protokolNo}</p>
+              <Badge tone={statusTone(a.visit.status)}>{VISIT_STATUS_LABEL[a.visit.status]}</Badge>
+            </div>
+          ) : a.status === 'CANCELLED' || a.status === 'NO_SHOW' ? (
+            <span className="text-xs text-slate-400">-</span>
+          ) : canArrive ? (
+            <Button size="sm" variant="success" onClick={() => arriveMutation.mutate(a.id)} disabled={arriveMutation.isPending}>
+              Geliş Al
+            </Button>
+          ) : (
+            <span className="text-xs text-slate-400">Bekliyor</span>
+          )}
+        </td>
+        <td className="px-4 py-3 text-right">
+          {canReschedule && (
+            <Button size="sm" variant="secondary" onClick={() => { setReschedule(a); setRescheduleDate(toLocalInput(a.appointmentDate)); }}>
+              Ertele
+            </Button>
+          )}
+        </td>
+      </tr>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -180,12 +268,23 @@ export const AppointmentsPage: React.FC = () => {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard label="Listedeki Randevu" value={appointments.length} />
+        <StatCard label="Listedeki Randevu" value={visibleAppointments.length} />
         <StatCard label="Bugün" value={summary.todays} tone="blue" />
         <StatCard label="Lead Randevusu" value={summary.leadBookings} hint={`${summary.pending} onay bekliyor`} tone="violet" />
       </div>
-
       <Card className="p-4 flex flex-wrap gap-3">
+
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant={view === 'list' ? 'primary' : 'secondary'} onClick={() => setView('list')}>
+            Liste
+          </Button>
+          <Button size="sm" variant={view === 'slots' ? 'primary' : 'secondary'} onClick={() => setView('slots')}>
+            Takvim
+          </Button>
+        </div>
+
+        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="max-w-[170px]" />
+
         <Select value={scope} onChange={(e) => setScope(e.target.value)} className="max-w-[170px]">
           <option value="">Tüm Zamanlar</option>
           <option value="today">Bugün</option>
@@ -222,8 +321,32 @@ export const AppointmentsPage: React.FC = () => {
       <Card>
         {isLoading ? (
           <LoadingText />
-        ) : appointments.length === 0 ? (
+        ) : visibleAppointments.length === 0 ? (
           <Empty title="Randevu bulunamadı" hint="Filtreleri değiştirin veya yeni randevu oluşturun." />
+        ) : view === 'slots' ? (
+          <Table
+            head={[
+              'Saat',
+              'Personel',
+              'Hasta / Lead',
+              'Tip',
+              'Durum',
+              'Geliş',
+              'İşlem',
+            ]}
+          >
+            {slotGroups.map((g) => (
+              <React.Fragment key={g.userId}>
+                <tr className="bg-slate-100">
+                  <td colSpan={7} className="px-4 py-2 font-semibold text-slate-700">
+                    {g.user?.name || 'Personel'}
+                    {g.user?.role ? ` - ${ROLE_LABEL[g.user?.role]}` : ''}
+                  </td>
+                </tr>
+                {g.appointments.map((a) => renderAppointmentRow(a))}
+              </React.Fragment>
+            ))}
+          </Table>
         ) : (
           <Table
             head={[
@@ -239,7 +362,7 @@ export const AppointmentsPage: React.FC = () => {
               'İşlem',
             ]}
           >
-            {appointments.map((a: any) => {
+            {visibleAppointments.map((a: any) => {
               const person = a.patient || a.lead;
               return (
                 <tr key={a.id} className="hover:bg-slate-50">
