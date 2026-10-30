@@ -11,6 +11,7 @@ export const ROUTES = {
   LEADS: '/leads',
   TREATMENT: '/treatment',
   INVOICES: '/invoices',
+  COLLECTIONS: '/collections',
   USERS: '/users',
   VISITS: '/visits',
   REPORTS: '/reports',

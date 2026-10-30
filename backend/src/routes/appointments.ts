@@ -105,9 +105,7 @@ router.get(
     const { role } = req.user!;
     const where: Record<string, unknown> = {};
 
-    if (role === 'DENTIST') {
-      where.userId = req.user!.id;
-    } else if (role === 'SALES') {
+    if ((role === 'DENTIST' || role === 'SALES') && !req.query.patientId) {
       where.userId = req.user!.id;
     }
     if (req.query.status) where.status = req.query.status as string;

@@ -17,6 +17,7 @@ import { AppointmentsPage } from './pages/records/AppointmentsPage';
 import { LeadsPage } from './pages/records/LeadsPage';
 import { TreatmentPage } from './pages/records/TreatmentPage';
 import { InvoicesPage } from './pages/records/InvoicesPage';
+import { CollectionsPage } from './pages/records/CollectionsPage';
 import { UsersPage } from './pages/records/UsersPage';
 import { VisitsPage } from './pages/records/VisitsPage';
 import { ReportsPage } from './pages/records/ReportsPage';
@@ -72,6 +73,10 @@ const App = () => {
               <Route
                 path={ROUTES.INVOICES}
                 element={['ADMIN', 'BANKO'].includes(user.role) ? <InvoicesPage /> : <Navigate to="/" replace />}
+              />
+              <Route
+                path={ROUTES.COLLECTIONS}
+                element={['ADMIN', 'BANKO'].includes(user.role) ? <CollectionsPage /> : <Navigate to="/" replace />}
               />
               <Route
                 path={ROUTES.USERS}

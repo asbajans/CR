@@ -117,7 +117,7 @@ export const PatientsPage: React.FC = () => {
 
       <Card className="p-4">
         <Input
-          placeholder="Ad, soyad, telefon veya hasta no ile ara..."
+          placeholder="Ad, soyad, telefon, TC veya hasta no ile ara..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-md"

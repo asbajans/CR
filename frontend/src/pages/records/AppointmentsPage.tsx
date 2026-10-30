@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { useAppStore } from '../../store/appStore';
+import { PatientPicker } from '../../components/PatientPicker';
 import {
   Badge,
   Button,
@@ -51,6 +52,7 @@ export const AppointmentsPage: React.FC = () => {
   const [type, setType] = useState('');
   const [scope, setScope] = useState('');
   const [channel, setChannel] = useState('');
+  const [patientFilterId, setPatientFilterId] = useState('');
   const [date, setDate] = useState(() => toLocalInput(new Date()).slice(0, 10));
   const [view, setView] = useState<'list' | 'slots'>('slots');
   const [createOpen, setCreateOpen] = useState(false);
@@ -126,7 +128,7 @@ export const AppointmentsPage: React.FC = () => {
   }, [slotMenuAnchor]);
 
   const { data: appointments = [], isLoading } = useQuery({
-    queryKey: ['appointments', { status, type, scope, channel }],
+    queryKey: ['appointments', { status, type, scope, channel, patientId: patientFilterId }],
     queryFn: async () => {
       const res = await api.get('/appointments', {
         params: {
@@ -134,6 +136,7 @@ export const AppointmentsPage: React.FC = () => {
           ...(type ? { type } : {}),
           ...(scope ? { scope } : {}),
           ...(channel ? { channel } : {}),
+          ...(patientFilterId ? { patientId: patientFilterId } : {}),
         },
       });
       return res.data.data as any[];
@@ -168,12 +171,20 @@ export const AppointmentsPage: React.FC = () => {
   const allStaff = useMemo(() => staff, [staff]);
 
   const visibleAppointments = useMemo(() => {
-    const base = date ? appointments.filter((a) => String(a.appointmentDate || '').slice(0, 10) === date) : appointments;
+    const base =
+      patientFilterId || !date
+        ? appointments
+        : appointments.filter((a) => String(a.appointmentDate || '').slice(0, 10) === date);
     if (scope === 'today') return base.filter((a) => isToday(a.appointmentDate));
     if (scope === 'upcoming') return base.filter((a) => new Date(a.appointmentDate).getTime() > Date.now());
     if (scope === 'past') return base.filter((a) => new Date(a.appointmentDate).getTime() < Date.now());
     return base;
-  }, [appointments, date, scope]);
+  }, [appointments, date, scope, patientFilterId]);
+
+  const selectedFilterPatient = useMemo(
+    () => (patientFilterId ? patients.find((p: any) => p.id === patientFilterId) : null),
+    [patients, patientFilterId]
+  );
 
   const summary = useMemo(() => {
     const todays = visibleAppointments.filter((a) => isToday(a.appointmentDate)).length;
@@ -263,13 +274,30 @@ export const AppointmentsPage: React.FC = () => {
     );
   };
 
-  const isOutsideWork = (userId: string, slot: string) => {
+  const hasWeeklyConfig = (userId: string) =>
+    (weeklySchedules as any[]).some((w: any) => (w.user?.id || w.userId) === userId);
+
+  const isNonWorkingDay = (userId: string) => {
+    const perDate = (workingHours as any[]).find((w: any) => (w.user?.id || w.userId) === userId);
+    if (perDate) return false;
+    if (!hasWeeklyConfig(userId)) return false;
+    return !workingHoursFor(userId);
+  };
+
+  const slotState = (userId: string, slot: string) => {
+    if (isNonWorkingDay(userId)) {
+      return { closed: true, label: 'Kapalı', tone: 'bg-slate-200 text-slate-500' };
+    }
     const wh = workingHoursFor(userId);
-    if (!wh) return false;
+    if (!wh) return { closed: false, label: '', tone: '' };
     const t = toMin(slot);
-    if (t < toMin(wh.start) || t >= toMin(wh.end)) return true;
-    if (wh.lunchStart && wh.lunchEnd && t >= toMin(wh.lunchStart) && t < toMin(wh.lunchEnd)) return true;
-    return false;
+    if (t < toMin(wh.start) || t >= toMin(wh.end)) {
+      return { closed: true, label: 'Kapalı', tone: 'bg-slate-200 text-slate-500' };
+    }
+    if (wh.lunchStart && wh.lunchEnd && t >= toMin(wh.lunchStart) && t < toMin(wh.lunchEnd)) {
+      return { closed: true, label: 'Öğle', tone: 'bg-amber-100 text-amber-800' };
+    }
+    return { closed: false, label: '', tone: '' };
   };
 
   useEffect(() => {
@@ -445,7 +473,21 @@ export const AppointmentsPage: React.FC = () => {
           </div>
         )}
 
-        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="max-w-[170px]" />
+        <div className="min-w-[280px] flex-1 md:max-w-md">
+          <PatientPicker
+            value={patientFilterId}
+            onChange={(id) => {
+              setPatientFilterId(id);
+              if (id) setView('list');
+            }}
+            allowCreate={false}
+            placeholder="Hasta ara: ad, telefon veya TC..."
+          />
+        </div>
+
+        {!patientFilterId && (
+          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="max-w-[170px]" />
+        )}
 
         <Select value={scope} onChange={(e) => setScope(e.target.value)} className="max-w-[170px]">
           <option value="">Tüm Zamanlar</option>
@@ -479,6 +521,31 @@ export const AppointmentsPage: React.FC = () => {
           <option value="Bilinmiyor">Bilinmiyor</option>
         </Select>
       </Card>
+
+      {patientFilterId && selectedFilterPatient && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 p-4 border-blue-200 bg-blue-50/50">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">
+              {selectedFilterPatient.name} {selectedFilterPatient.surname}
+              <span className="ml-2 font-mono text-xs text-slate-500">{selectedFilterPatient.hastaNo}</span>
+            </p>
+            <p className="mt-1 text-xs text-slate-600">
+              Telefon: {selectedFilterPatient.phone}
+              {selectedFilterPatient.tc ? ` · TC: ${selectedFilterPatient.tc}` : ''} ·{' '}
+              {visibleAppointments.length} randevu
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              setPatientFilterId('');
+            }}
+          >
+            Filtreyi Temizle
+          </Button>
+        </Card>
+      )}
 
       <Card>
         {isLoading ? (
@@ -533,7 +600,8 @@ export const AppointmentsPage: React.FC = () => {
                       {slotColumns.map((c: any) => {
                         const appt = apptAt(c, slot);
                         const block = blockAt(c.id, slot);
-                        const outside = isOutsideWork(c.id, slot);
+                        const cellState = slotState(c.id, slot);
+                        const outside = cellState.closed;
                         const isSelected = !!(drag && drag.columnId === c.id && drag.slots.includes(slot));
 
                         if (appt) {
@@ -601,13 +669,14 @@ export const AppointmentsPage: React.FC = () => {
                         }
 
                         const base = outside
-                          ? 'bg-slate-100 text-slate-400'
-                          : 'bg-white text-slate-300 hover:bg-blue-50';
+                          ? `${cellState.tone} cursor-not-allowed`
+                          : 'bg-white text-slate-300 hover:bg-blue-50 cursor-pointer';
                         return (
                           <td
                             key={c.id}
-                            className={`border border-slate-300 px-2 py-1 align-top select-none ${base} ${
-                              slotMode === 'block' ? 'cursor-crosshair' : 'cursor-pointer'
+                            title={outside ? `${cellState.label} - randevu verilemez` : undefined}
+                            className={`border border-slate-300 px-2 py-1 text-center align-top select-none text-[10px] font-semibold ${base} ${
+                              !outside && slotMode === 'block' ? 'cursor-crosshair' : ''
                             }`}
                             style={
                               isSelected
@@ -620,14 +689,16 @@ export const AppointmentsPage: React.FC = () => {
                               }
                             }}
                             onMouseEnter={() => {
-                              setDrag((d) =>
-                                d && d.columnId === c.id && !d.slots.includes(slot)
-                                  ? { ...d, slots: [...d.slots, slot] }
-                                  : d
-                              );
+                              if (!outside) {
+                                setDrag((d) =>
+                                  d && d.columnId === c.id && !d.slots.includes(slot)
+                                    ? { ...d, slots: [...d.slots, slot] }
+                                    : d
+                                );
+                              }
                             }}
                           >
-                            {isSelected ? '✓' : ''}
+                            {isSelected ? '✓' : outside ? cellState.label : ''}
                           </td>
                         );
                       })}
@@ -835,15 +906,11 @@ export const AppointmentsPage: React.FC = () => {
         </div>
 
         {form.target === 'patient' ? (
-          <Field label="Hasta *">
-            <Select value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })}>
-              <option value="">Hasta seçin</option>
-              {patients.map((p: any) => (
-                <option key={p.id} value={p.id}>
-                  {p.hastaNo} - {p.name} {p.surname}
-                </option>
-              ))}
-            </Select>
+          <Field label="Hasta *" hint="Ad, telefon veya TC ile arayın. Kayıtlı değilse aynı ekrandan yeni hasta oluşturabilirsiniz.">
+            <PatientPicker
+              value={form.patientId}
+              onChange={(patientId) => setForm({ ...form, patientId })}
+            />
           </Field>
         ) : (
           <Field label="Lead *" hint="Lead hasta kaydına dönüşmeden randevu verilebilir.">

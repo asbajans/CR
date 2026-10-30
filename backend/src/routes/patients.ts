@@ -41,6 +41,7 @@ router.get(
             { name: { contains: search, mode: 'insensitive' as const } },
             { surname: { contains: search, mode: 'insensitive' as const } },
             { phone: { contains: search } },
+            { tc: { contains: search } },
             { hastaNo: { contains: search, mode: 'insensitive' as const } },
           ],
         }
@@ -49,7 +50,7 @@ router.get(
     if (role === 'CALL_CENTER' || role === 'SALES') {
       const patients = await prisma.patient.findMany({
         where,
-        select: { id: true, hastaNo: true, name: true, surname: true, phone: true, email: true, createdAt: true },
+        select: { id: true, hastaNo: true, name: true, surname: true, tc: true, phone: true, email: true, createdAt: true },
         orderBy: { createdAt: 'desc' },
       });
       return res.json({ success: true, data: patients });
@@ -106,7 +107,7 @@ router.get(
 
 router.post(
   '/',
-  roleGuard('ADMIN', 'CALL_CENTER', 'SALES'),
+  roleGuard('ADMIN', 'CALL_CENTER', 'SALES', 'BANKO', 'DENTIST'),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const data = patientSchema.parse(req.body);
     const hastaNo = data.hastaNo || (await nextHastaNo());

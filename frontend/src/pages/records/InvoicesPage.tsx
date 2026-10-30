@@ -18,6 +18,7 @@ export const InvoicesPage: React.FC = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [paymentInvoice, setPaymentInvoice] = useState<any>(null);
   const [amount, setAmount] = useState('');
+  const [methodId, setMethodId] = useState('');
   const [planId, setPlanId] = useState('');
   const [invoiceAmount, setInvoiceAmount] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -34,6 +35,13 @@ export const InvoicesPage: React.FC = () => {
     queryFn: async () => (await api.get('/treatment')).data.data as any[],
   });
 
+  const { data: paymentMethods = [] } = useQuery({
+    queryKey: ['payment-methods'],
+    queryFn: async () => (await api.get('/collections/payment-methods')).data.data as any[],
+  });
+
+  const activeMethods = paymentMethods.filter((m: any) => m.isActive);
+
   const summary = useMemo(() => {
     const total = invoices.reduce((sum, inv) => sum + Number(inv.amount), 0);
     const paid = invoices.reduce((sum, inv) => sum + Number(inv.paidAmount), 0);
@@ -44,6 +52,9 @@ export const InvoicesPage: React.FC = () => {
     queryClient.invalidateQueries({ queryKey: ['invoices'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     queryClient.invalidateQueries({ queryKey: ['treatment-plans'] });
+    queryClient.invalidateQueries({ queryKey: ['collections'] });
+    queryClient.invalidateQueries({ queryKey: ['my-register'] });
+    queryClient.invalidateQueries({ queryKey: ['cash-registers'] });
   };
 
   const createMutation = useMutation({
@@ -66,12 +77,17 @@ export const InvoicesPage: React.FC = () => {
 
   const payMutation = useMutation({
     mutationFn: async () => {
-      await api.patch(`/invoices/${paymentInvoice.id}/pay`, { paidAmount: amount });
+      await api.post('/collections', {
+        invoiceId: paymentInvoice.id,
+        amount,
+        methodId,
+      });
     },
     onSuccess: () => {
       invalidation();
       setPaymentInvoice(null);
       setAmount('');
+      setMethodId('');
     },
     onError: (err) => alert(apiError(err)),
   });
@@ -125,6 +141,7 @@ export const InvoicesPage: React.FC = () => {
                         onClick={() => {
                           setPaymentInvoice({ ...inv, remaining });
                           setAmount(String(remaining));
+                          setMethodId(activeMethods[0]?.id || '');
                         }}
                       >
                         Ödeme Al
@@ -190,7 +207,7 @@ export const InvoicesPage: React.FC = () => {
             <Button variant="secondary" onClick={() => setPaymentInvoice(null)}>
               Vazgeç
             </Button>
-            <Button onClick={() => payMutation.mutate()} disabled={!amount || payMutation.isPending}>
+            <Button onClick={() => payMutation.mutate()} disabled={!amount || !methodId || payMutation.isPending}>
               Tahsil Et
             </Button>
           </>
@@ -202,9 +219,21 @@ export const InvoicesPage: React.FC = () => {
           </p>
           <p>Kalan bakiye: <strong>{money(paymentInvoice?.remaining)}</strong></p>
         </div>
-        <Field label="Tahsilat Tutarı (TL) *">
-          <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
-        </Field>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Tahsilat Tutarı (TL) *">
+            <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          </Field>
+          <Field label="Tahsilat Türü *">
+            <Select value={methodId} onChange={(e) => setMethodId(e.target.value)}>
+              <option value="">Seçiniz</option>
+              {activeMethods.map((m: any) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
       </Modal>
     </div>
   );

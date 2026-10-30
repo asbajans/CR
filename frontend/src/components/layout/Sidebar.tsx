@@ -14,6 +14,7 @@ const common: Record<string, NavItem[]> = {
     { label: 'Leadler', path: ROUTES.LEADS, icon: '📞' },
     { label: 'Tedavi Planları', path: ROUTES.TREATMENT, icon: '📋' },
     { label: 'Faturalar', path: ROUTES.INVOICES, icon: '💳' },
+    { label: 'Tahsilat / Kasa', path: ROUTES.COLLECTIONS, icon: '💰' },
     { label: 'Raporlar', path: ROUTES.REPORTS, icon: '📈' },
     { label: 'Ayarlar', path: ROUTES.SETTINGS, icon: '⚙️' },
   ],
@@ -45,6 +46,7 @@ const common: Record<string, NavItem[]> = {
     { label: 'Randevular', path: ROUTES.APPOINTMENTS, icon: '📅' },
     { label: 'Gelişler', path: ROUTES.VISITS, icon: '🪪' },
     { label: 'Faturalar', path: ROUTES.INVOICES, icon: '💳' },
+    { label: 'Tahsilat / Kasa', path: ROUTES.COLLECTIONS, icon: '💰' },
   ],
 };
 

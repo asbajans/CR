@@ -47,6 +47,9 @@ export const Banko: React.FC = () => {
         <Link to="/invoices" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">
           + Fatura / Ödeme İşlemleri
         </Link>
+        <Link to="/collections" className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700">
+          Tahsilat / Kasa
+        </Link>
         <Link to="/appointments" className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium hover:border-blue-400">
           Randevu Onayları
         </Link>

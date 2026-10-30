@@ -76,6 +76,11 @@ model User {
     createdPlans        TreatmentPlan[] @relation("PlanCreator")
     doctorPlans         TreatmentPlan[] @relation("PlanDoctor")
     commissions         Commission[]    @relation("UserCommission")
+    collections         Collection[]    @relation("CollectionCollector")
+    cashRegister        CashRegister?   @relation("CashRegisterUser")
+    handoversFrom       CashHandover[]  @relation("CashHandoverFrom")
+    handoversTo         CashHandover[]  @relation("CashHandoverTo")
+    approvedHandovers   CashHandover[]  @relation("CashHandoverApprover")
 }
 
 model Patient {
@@ -99,6 +104,7 @@ model Patient {
   visits         PatientVisit[]
   doctorCommissions Commission[] @relation("DoctorCommissionPatient")
   salesCommissions  Commission[] @relation("SalesCommissionPatient")
+  collections    Collection[]
 }
 
 model MedicalRecord {
@@ -313,6 +319,73 @@ model Invoice {
   createdAt   DateTime @default(now())
 
   bankoCommissions Commission[]
+  collections      Collection[]
+}
+
+model PaymentMethod {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  collections Collection[]
+}
+
+model Collection {
+  id            String        @id @default(uuid())
+  invoiceId     String?
+  invoice       Invoice?      @relation(fields: [invoiceId], references: [id])
+  patientId     String?
+  patient       Patient?      @relation(fields: [patientId], references: [id])
+  amount        Decimal
+  methodId      String
+  method        PaymentMethod @relation(fields: [methodId], references: [id])
+  collectedById String
+  collectedBy   User          @relation("CollectionCollector", fields: [collectedById], references: [id])
+  notes         String?
+  createdAt     DateTime      @default(now())
+
+  @@index([invoiceId])
+  @@index([patientId])
+  @@index([methodId])
+  @@index([collectedById])
+  @@index([createdAt])
+}
+
+model CashRegister {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation("CashRegisterUser", fields: [userId], references: [id])
+  balance   Decimal  @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum CashHandoverStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model CashHandover {
+  id           String             @id @default(uuid())
+  fromUserId   String
+  fromUser     User               @relation("CashHandoverFrom", fields: [fromUserId], references: [id])
+  toUserId     String
+  toUser       User               @relation("CashHandoverTo", fields: [toUserId], references: [id])
+  amount       Decimal
+  status       CashHandoverStatus @default(PENDING)
+  note         String?
+  approvedById String?
+  approvedBy   User?              @relation("CashHandoverApprover", fields: [approvedById], references: [id])
+  approvedAt   DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model PatientVisit {

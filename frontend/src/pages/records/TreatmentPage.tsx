@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { useAppStore } from '../../store/appStore';
+import { PatientPicker } from '../../components/PatientPicker';
 import { Badge, Button, Card, Empty, Field, Input, LoadingText, Modal, PageHeader, SearchSelect, Select, Table } from '../../components/ui';
 import {
   INVOICE_STATUS_LABEL,
@@ -33,11 +34,6 @@ export const TreatmentPage: React.FC = () => {
   const { data: plans = [], isLoading } = useQuery({
     queryKey: ['treatment-plans'],
     queryFn: async () => (await api.get('/treatment')).data.data as any[],
-  });
-
-  const { data: patients = [] } = useQuery({
-    queryKey: ['patients'],
-    queryFn: async () => (await api.get('/patients')).data.data as any[],
   });
 
   const { data: services = [] } = useQuery({
@@ -209,16 +205,9 @@ export const TreatmentPage: React.FC = () => {
           </>
         }
       >
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Hasta *">
-            <Select value={patientId} onChange={(e) => setPatientId(e.target.value)}>
-              <option value="">Hasta seçin</option>
-              {patients.map((p: any) => (
-                <option key={p.id} value={p.id}>
-                  {p.hastaNo} - {p.name} {p.surname}
-                </option>
-              ))}
-            </Select>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Field label="Hasta *" hint="Ad, telefon veya TC ile arayın. Kayıtlı değilse aynı ekrandan yeni hasta oluşturabilirsiniz.">
+            <PatientPicker value={patientId} onChange={setPatientId} />
           </Field>
           <Field label="Doktor *">
             <Select value={doctorId} onChange={(e) => setDoctorId(e.target.value)}>

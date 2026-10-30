@@ -4,7 +4,7 @@ import { api } from '../../lib/api';
 import { Badge, Button, Card, Empty, Field, Input, Modal, PageHeader, Select, Table } from '../../components/ui';
 import { ROLE_LABEL, dateTime, fromLocalInput, money, toLocalInput } from '../../lib/format';
 
-type Tab = 'services' | 'commissions' | 'calendar';
+type Tab = 'services' | 'commissions' | 'calendar' | 'payments';
 
 export const SettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('services');
@@ -42,11 +42,27 @@ export const SettingsPage: React.FC = () => {
           >
             Personel Takvim Ayarları
           </button>
+          <button
+            onClick={() => setActiveTab('payments')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition ${
+              activeTab === 'payments' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+          >
+            Tahsilat Türleri
+          </button>
         </nav>
       </div>
 
       <div className="px-6 pb-6">
-        {activeTab === 'services' ? <ServicesTab /> : activeTab === 'commissions' ? <CommissionsTab /> : <CalendarTab />}
+        {activeTab === 'services' ? (
+          <ServicesTab />
+        ) : activeTab === 'commissions' ? (
+          <CommissionsTab />
+        ) : activeTab === 'payments' ? (
+          <PaymentMethodsTab />
+        ) : (
+          <CalendarTab />
+        )}
       </div>
     </div>
   );
@@ -822,6 +838,121 @@ const CalendarTab: React.FC = () => {
           </Table>
         )}
       </Card>
+    </div>
+  );
+};
+
+const PaymentMethodsTab: React.FC = () => {
+  const queryClient = useQueryClient();
+  const [modal, setModal] = useState<{ open: boolean; id?: string; name: string; isActive: boolean }>({
+    open: false,
+    name: '',
+    isActive: true,
+  });
+
+  const { data: methods = [] } = useQuery({
+    queryKey: ['payment-methods'],
+    queryFn: async () => (await api.get('/collections/payment-methods')).data.data as any[],
+  });
+
+  const save = async () => {
+    if (!modal.name.trim()) return;
+    const payload = { name: modal.name.trim(), isActive: modal.isActive };
+    if (modal.id) {
+      await api.patch(`/collections/payment-methods/${modal.id}`, payload);
+    } else {
+      await api.post('/collections/payment-methods', payload);
+    }
+    setModal({ open: false, name: '', isActive: true });
+    queryClient.invalidateQueries({ queryKey: ['payment-methods'] });
+  };
+
+  const remove = async (id: string) => {
+    if (!confirm('Bu tahsilat türünü silmek istediğinizden emin misiniz?')) return;
+    try {
+      await api.delete(`/collections/payment-methods/${id}`);
+      queryClient.invalidateQueries({ queryKey: ['payment-methods'] });
+    } catch {
+      alert('Tahsilat türü kullanıldığı için silinemiyor olabilir.');
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Tahsilat Türleri</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Ödeme alırken seçilebilecek tahsilat yöntemlerini yönetin (Nakit, Kredi Kartı vb.).
+          </p>
+        </div>
+        <Button size="sm" onClick={() => setModal({ open: true, name: '', isActive: true })}>
+          + Yeni Tahsilat Türü
+        </Button>
+      </div>
+
+      <Card>
+        <Table head={['Tahsilat Türü', 'Durum', 'İşlemler']}>
+          {(methods as any[]).map((m: any) => (
+            <tr key={m.id}>
+              <td className="px-4 py-3 font-medium text-slate-900">{m.name}</td>
+              <td className="px-4 py-3">
+                <Badge tone={m.isActive ? 'green' : 'slate'}>{m.isActive ? 'Aktif' : 'Pasif'}</Badge>
+              </td>
+              <td className="px-4 py-3">
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setModal({ open: true, id: m.id, name: m.name, isActive: m.isActive })}
+                  >
+                    Düzenle
+                  </Button>
+                  <Button size="sm" variant="danger" onClick={() => remove(m.id)}>
+                    Sil
+                  </Button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </Table>
+        {(methods as any[]).length === 0 && <Empty title="Henüz tahsilat türü tanımlı değil" />}
+      </Card>
+
+      <Modal
+        open={modal.open}
+        onClose={() => setModal({ open: false, name: '', isActive: true })}
+        title={modal.id ? 'Tahsilat Türü Düzenle' : 'Yeni Tahsilat Türü'}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setModal({ open: false, name: '', isActive: true })}>
+              İptal
+            </Button>
+            <Button onClick={save} disabled={!modal.name.trim()}>
+              Kaydet
+            </Button>
+          </>
+        }
+      >
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Tahsilat Türü Adı *">
+            <Input
+              value={modal.name}
+              onChange={(e) => setModal({ ...modal, name: e.target.value })}
+              placeholder="Örn: Nakit, Kredi Kartı, Havale"
+            />
+          </Field>
+          <Field label="Aktif">
+            <Select
+              value={modal.isActive ? 'true' : 'false'}
+              onChange={(e) => setModal({ ...modal, isActive: e.target.value === 'true' })}
+            >
+              <option value="true">Aktif</option>
+              <option value="false">Pasif</option>
+            </Select>
+          </Field>
+        </div>
+      </Modal>
     </div>
   );
 };

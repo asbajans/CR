@@ -188,6 +188,17 @@ const leadSeed = [
   { name: 'Gizem Nur', phone: '0533 444 55 06', source: 'WhatsApp', status: LeadStatus.NEW, patient: null, campaign: 2 },
 ];
 
+async function seedPaymentMethods() {
+  const defaultMethods = ['Nakit', 'Kredi Kartı', 'Havale / EFT'];
+  for (const name of defaultMethods) {
+    await prisma.paymentMethod.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+  }
+}
+
 async function seedUsers() {
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
   const map: Record<string, string> = {};
@@ -411,6 +422,7 @@ async function augmentExistingData(userIds: Record<string, string>) {
 }
 
 export async function seedDatabase() {
+  await seedPaymentMethods();
   const userIds = await seedUsers();
 
   const patientCount = await prisma.patient.count();
